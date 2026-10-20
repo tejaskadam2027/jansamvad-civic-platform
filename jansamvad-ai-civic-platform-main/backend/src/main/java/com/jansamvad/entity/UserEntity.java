@@ -25,6 +25,14 @@ public class UserEntity extends BaseEntity {
     @Column(nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "access_status", nullable = false)
+    private AccessStatus accessStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "requested_role")
+    private Role requestedRole;
+
     private String ward;
 
     private String department;
@@ -41,7 +49,11 @@ public class UserEntity extends BaseEntity {
     private Instant accountCreatedAt;
 
     public enum Role {
-        CITIZEN, MUNICIPAL_AUTHORITY, FIELD_WORKFORCE, INFLUENCER_REPORTER
+        CITIZEN, MUNICIPAL_AUTHORITY, FIELD_WORKFORCE, INFLUENCER_REPORTER, ADMIN
+    }
+
+    public enum AccessStatus {
+        ACTIVE, PENDING, REJECTED
     }
 
     @PrePersist
@@ -61,6 +73,10 @@ public class UserEntity extends BaseEntity {
     public void setMobileNumber(String mobileNumber) { this.mobileNumber = mobileNumber; }
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
+    public AccessStatus getAccessStatus() { return accessStatus; }
+    public void setAccessStatus(AccessStatus accessStatus) { this.accessStatus = accessStatus; }
+    public Role getRequestedRole() { return requestedRole; }
+    public void setRequestedRole(Role requestedRole) { this.requestedRole = requestedRole; }
     public String getWard() { return ward; }
     public void setWard(String ward) { this.ward = ward; }
     public String getDepartment() { return department; }

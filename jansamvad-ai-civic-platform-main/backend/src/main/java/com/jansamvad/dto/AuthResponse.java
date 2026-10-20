@@ -6,16 +6,20 @@ public class AuthResponse {
     private String fullName;
     private String email;
     private String role;
+    private String accessStatus;
+    private String requestedRole;
     private String ward;
     private String department;
     private String mobileNumber;
 
-    public AuthResponse(String token, String userId, String fullName, String email, String role, String ward, String department, String mobileNumber) {
+    public AuthResponse(String token, String userId, String fullName, String email, String role, String accessStatus, String requestedRole, String ward, String department, String mobileNumber) {
         this.token = token;
         this.userId = userId;
         this.fullName = fullName;
         this.email = email;
         this.role = role;
+        this.accessStatus = accessStatus;
+        this.requestedRole = requestedRole;
         this.ward = ward;
         this.department = department;
         this.mobileNumber = mobileNumber;
@@ -31,6 +35,10 @@ public class AuthResponse {
     public void setEmail(String email) { this.email = email; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getAccessStatus() { return accessStatus; }
+    public void setAccessStatus(String accessStatus) { this.accessStatus = accessStatus; }
+    public String getRequestedRole() { return requestedRole; }
+    public void setRequestedRole(String requestedRole) { this.requestedRole = requestedRole; }
     public String getWard() { return ward; }
     public void setWard(String ward) { this.ward = ward; }
     public String getDepartment() { return department; }

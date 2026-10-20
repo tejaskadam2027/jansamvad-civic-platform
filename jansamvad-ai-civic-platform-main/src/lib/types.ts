@@ -1,4 +1,4 @@
-export type Role = 'citizen' | 'authority' | 'workforce' | 'influencer';
+export type Role = 'citizen' | 'authority' | 'workforce' | 'influencer' | 'admin';
 
 export type ComplaintStatus =
   | 'Submitted'

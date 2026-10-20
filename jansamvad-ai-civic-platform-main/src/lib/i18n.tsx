@@ -66,6 +66,10 @@ const translations: Record<Lang, Dict> = {
     'auth.successCreate': 'Account created successfully! Please sign in.',
     'auth.signedInAs': 'Signed in as {name}. Choose your role to continue.',
     'auth.accountCreated': 'Account created! Please sign in.',
+    'auth.roleReq': 'Select Role *',
+    'auth.rolePendingNote': 'This role requires administrator approval. Your request will be reviewed before you can sign in.',
+    'auth.pendingRequest': 'Access request submitted! An administrator will review your request. You can sign in once approved.',
+    'auth.requestSubmitted': 'Access request submitted for approval.',
 
     // Role selection
     'role.title': 'Choose Your Role',
@@ -80,6 +84,8 @@ const translations: Record<Lang, Dict> = {
     'role.workforceDesc': 'Access assigned complaints, field work, status updates and resolution.',
     'role.influencer': 'Influencer / Reporter',
     'role.influencerDesc': 'Access civic reports, complaint visibility and community engagement.',
+    'role.admin': 'Administrator',
+    'role.adminDesc': 'Review and approve pending access requests for all roles.',
     'role.portal': '{label} Portal',
 
     // Nav
@@ -411,6 +417,29 @@ const translations: Record<Lang, Dict> = {
     'lang.mr': 'मराठी',
     'lang.hi': 'हिन्दी',
     'lang.label': 'Language',
+
+    // Admin dashboard
+    'admin.title': 'Administrator Dashboard',
+    'admin.subtitle': 'Review and manage access requests',
+    'admin.pendingRequests': 'Pending Access Requests',
+    'admin.noRequests': 'No pending access requests',
+    'admin.approve': 'Approve',
+    'admin.reject': 'Reject',
+    'admin.name': 'Name',
+    'admin.email': 'Email',
+    'admin.mobile': 'Mobile',
+    'admin.requestedRole': 'Requested Role',
+    'admin.submittedOn': 'Submitted',
+    'admin.action': 'Action',
+    'admin.approved': 'Request approved. User can now sign in.',
+    'admin.rejected': 'Request rejected.',
+    'admin.confirmApprove': 'Approve this access request?',
+    'admin.confirmReject': 'Reject this access request?',
+    'admin.totalRequests': 'Total Requests',
+    'admin.approvedCount': 'Approved',
+    'admin.rejectedCount': 'Rejected',
+    'admin.loading': 'Loading requests...',
+    'admin.loadError': 'Failed to load access requests. Please try again.',
   },
 
   mr: {

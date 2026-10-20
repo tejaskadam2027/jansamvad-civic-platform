@@ -9,6 +9,8 @@ import { validateEmail, validateMobile } from '@/lib/auth';
 
 type Mode = 'signin' | 'signup';
 
+type SignupRole = 'citizen' | 'authority' | 'workforce' | 'influencer';
+
 interface FieldErrors {
   name?: string;
   mobile?: string;
@@ -30,6 +32,7 @@ export default function LoginScreen() {
   const [suEmail, setSuEmail] = useState('');
   const [suPassword, setSuPassword] = useState('');
   const [suConfirm, setSuConfirm] = useState('');
+  const [suRole, setSuRole] = useState<SignupRole>('citizen');
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -94,20 +97,26 @@ export default function LoginScreen() {
     setSuccess('');
     setFieldErrors({});
     if (!validateSignUp()) return;
-    const result = await signUp(suName.trim(), suEmail.trim(), suPassword, 'citizen', suMobile.trim());
+    const result = await signUp(suName.trim(), suEmail.trim(), suPassword, suRole, suMobile.trim());
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    setSuccess(t('auth.successCreate'));
+    if (result.pending) {
+      setSuccess(t('auth.pendingRequest'));
+      toast(t('auth.requestSubmitted'), 'success');
+    } else {
+      setSuccess(t('auth.successCreate'));
+      toast(t('auth.accountCreated'), 'success');
+    }
     setSuName('');
     setSuMobile('');
     setSuEmail('');
     setSuPassword('');
     setSuConfirm('');
+    setSuRole('citizen');
     setMode('signin');
     setSiEmail(suEmail.trim());
-    toast(t('auth.accountCreated'), 'success');
   };
 
   return (
@@ -296,6 +305,26 @@ export default function LoginScreen() {
                   />
                 </div>
                 {fieldErrors.confirm && <p className="mt-1 text-xs text-rose-600">{fieldErrors.confirm}</p>}
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">{t('auth.roleReq')}</label>
+                <div className="mt-1 relative">
+                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={suRole}
+                    onChange={(e) => setSuRole(e.target.value as SignupRole)}
+                    className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                  >
+                    <option value="citizen">{t('role.citizen')}</option>
+                    <option value="authority">{t('role.authority')}</option>
+                    <option value="workforce">{t('role.workforce')}</option>
+                    <option value="influencer">{t('role.influencer')}</option>
+                  </select>
+                </div>
+                {suRole !== 'citizen' && (
+                  <p className="mt-1 text-xs text-amber-600">{t('auth.rolePendingNote')}</p>
+                )}
               </div>
 
               <button

@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { getInitialState } from './mockData';
 import { analyzeComplaint } from './ai';
-import { signUp as authSignUp, signIn as authSignIn, saveSession, loadSession, clearSession, accountToUser, savePendingUser, loadPendingUser, clearPendingUser, clearToken, type Account } from './auth';
+import { saveSession, loadSession, clearSession, loadPendingUser, clearPendingUser, clearToken } from './auth';
 import { apiSignup, apiSignin, apiGetMe, getToken, apiCreateComplaint, apiGetUserComplaints, apiGetComplaint, type ComplaintResponseDto } from './api';
 
 const STORAGE_KEY = 'jansamvad_state_v1';
@@ -23,7 +23,7 @@ interface StoreContextValue extends AppState {
   logout: () => void;
   selectRole: (role: Role) => void;
   switchRole: () => void;
-  signUp: (name: string, email: string, password: string, role: Role, phone: string) => Promise<{ ok: true; account?: Account } | { ok: false; error: string }>;
+  signUp: (name: string, email: string, password: string, role: Role, phone: string) => Promise<{ ok: true; pending: boolean } | { ok: false; error: string }>;
   signIn: (email: string, password: string) => Promise<{ ok: true; user: User } | { ok: false; error: string }>;
   addComplaint: (c: Omit<Complaint, 'id' | 'status' | 'timeline' | 'createdAt' | 'rewardPoints'>) => Promise<Complaint>;
   fetchUserComplaints: (userId: string) => Promise<void>;
@@ -150,8 +150,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (token && !loadSession() && !loadPendingUser()) {
       apiGetMe()
         .then((user) => {
-          savePendingUser(user);
-          setPendingUser(user);
+          saveSession(user);
+          setState((s) => ({ ...s, currentUser: user }));
         })
         .catch(() => {
           clearToken();
@@ -187,8 +187,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const selectRole = useCallback((role: Role) => {
     setPendingUser((pending) => {
       if (!pending) return pending;
-      const demo = !getToken();
-      if (!demo && role !== pending.role) return pending;
       const user: User = { ...pending, role };
       saveSession(user);
       clearPendingUser();
@@ -209,14 +207,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string, role: Role, phone: string) => {
+    const roleMap: Record<Role, string> = {
+      citizen: 'CITIZEN',
+      authority: 'MUNICIPAL_AUTHORITY',
+      workforce: 'FIELD_WORKFORCE',
+      influencer: 'INFLUENCER_REPORTER',
+      admin: 'CITIZEN',
+    };
     try {
-      const result = await apiSignup({ fullName: name, email, password, mobileNumber: phone });
-      return { ok: true as const };
-    } catch {
-      // Fallback to localStorage
-      const result = authSignUp(name, email, password, role, phone);
-      if (!result.ok) return { ok: false as const, error: result.error };
-      return { ok: true as const, account: result.account };
+      const result = await apiSignup({
+        fullName: name,
+        email,
+        password,
+        mobileNumber: phone,
+        role: roleMap[role],
+      });
+      const pending = result.accessStatus === 'PENDING';
+      if (pending) {
+        clearToken();
+      } else {
+        const user = result.user;
+        saveSession(user);
+        setState((s) => ({ ...s, currentUser: user }));
+      }
+      return { ok: true as const, pending };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sign up failed';
+      return { ok: false as const, error: message };
     }
   }, []);
 
@@ -224,17 +241,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const result = await apiSignin({ email, password });
       const user = result.user;
-      savePendingUser(user);
-      setPendingUser(user);
+      saveSession(user);
+      clearPendingUser();
+      setPendingUser(null);
+      setState((s) => ({ ...s, currentUser: user }));
       return { ok: true as const, user };
-    } catch {
-      // Fallback to localStorage
-      const result = authSignIn(email, password);
-      if (!result.ok) return { ok: false as const, error: result.error };
-      const user = accountToUser(result.account);
-      savePendingUser(user);
-      setPendingUser(user);
-      return { ok: true as const, user };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid email or password';
+      return { ok: false as const, error: message };
     }
   }, []);
 

@@ -5,6 +5,7 @@ import CitizenDashboard from '@/screens/CitizenDashboard';
 import AuthorityDashboard from '@/screens/AuthorityDashboard';
 import WorkforceDashboard from '@/screens/WorkforceDashboard';
 import InfluencerDashboard from '@/screens/InfluencerDashboard';
+import AdminDashboard from '@/screens/AdminDashboard';
 import ToastContainer from '@/components/ui/Toast';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
       {currentUser?.role === 'authority' && <AuthorityDashboard />}
       {currentUser?.role === 'workforce' && <WorkforceDashboard />}
       {currentUser?.role === 'influencer' && <InfluencerDashboard />}
+      {currentUser?.role === 'admin' && <AdminDashboard />}
       <ToastContainer />
     </>
   );

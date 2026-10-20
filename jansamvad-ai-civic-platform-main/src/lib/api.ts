@@ -51,6 +51,7 @@ export interface AuthSignupRequest {
   email: string;
   password: string;
   mobileNumber: string;
+  role?: string;
 }
 
 export interface AuthSigninRequest {
@@ -64,6 +65,8 @@ export interface AuthResponseDto {
   fullName: string;
   email: string;
   role: string;
+  accessStatus: string;
+  requestedRole: string | null;
   ward: string | null;
   department: string | null;
   mobileNumber: string;
@@ -75,6 +78,8 @@ export interface UserResponseDto {
   email: string;
   mobileNumber: string;
   role: string;
+  accessStatus: string;
+  requestedRole: string | null;
   ward: string | null;
   department: string | null;
   createdAt: string;
@@ -86,6 +91,7 @@ function mapRole(role: string): Role {
   if (r === 'MUNICIPAL_AUTHORITY') return 'authority';
   if (r === 'FIELD_WORKFORCE') return 'workforce';
   if (r === 'INFLUENCER_REPORTER' || r === 'INFLUENCER') return 'influencer';
+  if (r === 'ADMIN') return 'admin';
   return 'citizen';
 }
 
@@ -111,7 +117,14 @@ function userResponseToUser(resp: UserResponseDto): User {
   };
 }
 
-export async function apiSignup(req: AuthSignupRequest): Promise<{ token: string; user: User }> {
+export interface ApiSignupResult {
+  token: string;
+  user: User;
+  accessStatus: string;
+  requestedRole: string | null;
+}
+
+export async function apiSignup(req: AuthSignupRequest): Promise<ApiSignupResult> {
   const res = await fetch(`${API_BASE}/api/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -119,7 +132,12 @@ export async function apiSignup(req: AuthSignupRequest): Promise<{ token: string
   });
   const data = await handleResponse<AuthResponseDto>(res);
   saveToken(data.token);
-  return { token: data.token, user: authResponseToUser(data) };
+  return {
+    token: data.token,
+    user: authResponseToUser(data),
+    accessStatus: data.accessStatus,
+    requestedRole: data.requestedRole,
+  };
 }
 
 export async function apiSignin(req: AuthSigninRequest): Promise<{ token: string; user: User }> {
@@ -309,4 +327,40 @@ export async function apiDeleteConversation(id: number): Promise<void> {
   if (!res.ok && res.status !== 204) {
     throw new Error(`Failed to delete conversation (${res.status})`);
   }
+}
+
+// ---- Admin Access Request API ----
+
+export interface AccessRequestDto {
+  id: number;
+  fullName: string;
+  email: string;
+  mobileNumber: string;
+  currentRole: string;
+  requestedRole: string | null;
+  accessStatus: string;
+  createdAt: string;
+}
+
+export async function apiGetPendingRequests(): Promise<AccessRequestDto[]> {
+  const res = await fetch(`${API_BASE}/api/admin/access-requests`, {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse<AccessRequestDto[]>(res);
+}
+
+export async function apiApproveRequest(userId: number): Promise<AccessRequestDto> {
+  const res = await fetch(`${API_BASE}/api/admin/access-requests/${userId}/approve`, {
+    method: 'PUT',
+    headers: { ...authHeaders() },
+  });
+  return handleResponse<AccessRequestDto>(res);
+}
+
+export async function apiRejectRequest(userId: number): Promise<AccessRequestDto> {
+  const res = await fetch(`${API_BASE}/api/admin/access-requests/${userId}/reject`, {
+    method: 'PUT',
+    headers: { ...authHeaders() },
+  });
+  return handleResponse<AccessRequestDto>(res);
 }
