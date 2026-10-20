@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { getInitialState } from './mockData';
 import { analyzeComplaint } from './ai';
-import { saveSession, loadSession, clearSession, loadPendingUser, clearPendingUser, clearToken } from './auth';
+import { saveSession, loadSession, clearSession, savePendingUser, loadPendingUser, clearPendingUser, clearToken } from './auth';
 import { apiSignup, apiSignin, apiGetMe, getToken, apiCreateComplaint, apiGetUserComplaints, apiGetComplaint, type ComplaintResponseDto } from './api';
 
 const STORAGE_KEY = 'jansamvad_state_v1';

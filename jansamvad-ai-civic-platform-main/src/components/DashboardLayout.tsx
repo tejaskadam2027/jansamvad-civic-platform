@@ -28,6 +28,7 @@ const roleColors: Record<Role, string> = {
   authority: 'from-teal-600 to-teal-700',
   workforce: 'from-orange-600 to-orange-700',
   influencer: 'from-fuchsia-600 to-fuchsia-700',
+  admin: 'from-slate-700 to-slate-900',
 };
 
 export default function DashboardLayout({
@@ -53,6 +54,7 @@ export default function DashboardLayout({
     authority: t('role.authority'),
     workforce: t('role.workforce'),
     influencer: t('role.influencer'),
+    admin: t('role.admin'),
   };
 
   const langOptions: { code: Lang; label: string }[] = [
