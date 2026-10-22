@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  LayoutDashboard, Megaphone, PlusCircle, BarChart3, Gift, User as UserIcon,
-  Users, MousePointerClick, TrendingUp, Share2, Copy, QrCode, Link2, Eye, Image as ImageIcon,
-} from 'lucide-react';
+import { LayoutDashboard, Megaphone, CirclePlus as PlusCircle, ChartBar as BarChart3, Gift, User as UserIcon, Users, MousePointerClick, TrendingUp, Share2, Copy, QrCode, Link2, Eye, Image as ImageIcon } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
 import Modal from '@/components/ui/Modal';

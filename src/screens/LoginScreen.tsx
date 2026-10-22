@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  Building2, User, Shield, HardHat, Megaphone, ArrowRight, Mail, Lock, UserPlus,
-  LogIn, AlertCircle, CheckCircle2, Phone,
-} from 'lucide-react';
+import { Building2, User, Shield, HardHat, Megaphone, ArrowRight, Mail, Lock, UserPlus, LogIn, CircleAlert as AlertCircle, CircleCheck as CheckCircle2, Phone } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { validateEmail, validateMobile } from '@/lib/auth';

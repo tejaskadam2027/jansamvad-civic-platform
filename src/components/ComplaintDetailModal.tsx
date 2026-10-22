@@ -1,6 +1,6 @@
 import Modal from '@/components/ui/Modal';
 import { StatusBadge, PriorityBadge } from '@/components/ui/Badges';
-import { MapPin, User, Calendar, Cpu, Building, CheckCircle2, Clock, Image as ImageIcon } from 'lucide-react';
+import { MapPin, User, Calendar, Cpu, Building, CircleCheck as CheckCircle2, Clock, Image as ImageIcon } from 'lucide-react';
 import type { Complaint } from '@/lib/types';
 import { formatDateTime } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageCircle, X, Send, Bot, User as UserIcon, Trash2, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User as UserIcon, Trash2, Loader as Loader2 } from 'lucide-react';
 import { apiSendMessage, apiGetConversations, apiGetConversationMessages, apiDeleteConversation,
   type ChatMessageItemDto, type ChatConversationDto } from '@/lib/api';
 import { useI18n, detectTextLang } from '@/lib/i18n';

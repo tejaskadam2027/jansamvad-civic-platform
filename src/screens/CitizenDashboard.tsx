@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  LayoutDashboard, FilePlus, ListChecks, Search, Trophy, Bell, User as UserIcon,
-  MapPin, Upload, Image as ImageIcon, Video, Cpu, CheckCircle2, Sparkles, TrendingUp, Award, Clock,
-} from 'lucide-react';
+import { LayoutDashboard, FilePlus, ListChecks, Search, Trophy, Bell, User as UserIcon, MapPin, Upload, Image as ImageIcon, Video, Cpu, CircleCheck as CheckCircle2, Sparkles, TrendingUp, Award, Clock } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
 import { StatusBadge, PriorityBadge } from '@/components/ui/Badges';

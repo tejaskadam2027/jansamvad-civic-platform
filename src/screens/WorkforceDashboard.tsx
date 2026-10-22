@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  LayoutDashboard, ClipboardList, History, User as UserIcon,
-  CheckCircle2, Play, MapPin, Camera, Clock, ArrowRight, Image as ImageIcon,
-} from 'lucide-react';
+import { LayoutDashboard, ClipboardList, History, User as UserIcon, CircleCheck as CheckCircle2, Play, MapPin, Camera, Clock, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
 import { PriorityBadge, TaskStatusBadge } from '@/components/ui/Badges';

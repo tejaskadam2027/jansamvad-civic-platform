@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  LayoutDashboard, ClipboardList, Map, Building2, HardHat, BarChart3, Bell,
-  CheckCircle2, XCircle, AlertTriangle, Clock, MapPin, Cpu, TrendingUp,
-} from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Map, Building2, HardHat, ChartBar as BarChart3, Bell, CircleCheck as CheckCircle2, Circle as XCircle, TriangleAlert as AlertTriangle, Clock, MapPin, Cpu, TrendingUp } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
 import { StatusBadge, PriorityBadge } from '@/components/ui/Badges';

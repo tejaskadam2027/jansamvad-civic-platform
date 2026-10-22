@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, RefreshCw, AlertCircle } from 'lucide-react';
+import { ShieldCheck, CircleCheck as CheckCircle2, Circle as XCircle, Clock, RefreshCw, CircleAlert as AlertCircle } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';

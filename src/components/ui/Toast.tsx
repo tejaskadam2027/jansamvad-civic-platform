@@ -1,4 +1,4 @@
-import { CheckCircle2, Info, AlertTriangle, X } from 'lucide-react';
+import { CircleCheck as CheckCircle2, Info, TriangleAlert as AlertTriangle, X } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
 export default function ToastContainer() {
