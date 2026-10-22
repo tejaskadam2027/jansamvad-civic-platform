@@ -13,6 +13,7 @@ import { getInitialState } from './mockData';
 import { analyzeComplaint } from './ai';
 import { saveSession, loadSession, clearSession, savePendingUser, loadPendingUser, clearPendingUser, clearToken } from './auth';
 import { apiSignup, apiSignin, apiGetMe, getToken, apiCreateComplaint, apiGetUserComplaints, apiGetComplaint, type ComplaintResponseDto } from './api';
+import { supabase } from './supabase';
 
 const STORAGE_KEY = 'jansamvad_state_v1';
 
@@ -177,6 +178,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    supabase.auth.signOut().catch(() => {});
     clearSession();
     clearPendingUser();
     clearToken();

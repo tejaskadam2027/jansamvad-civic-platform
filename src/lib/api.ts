@@ -1,4 +1,5 @@
 import type { Role, User } from './types';
+import { supabase } from './supabase';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 const TOKEN_KEY = 'jansamvad_jwt_token_v1';
@@ -95,27 +96,29 @@ function mapRole(role: string): Role {
   return 'citizen';
 }
 
-function authResponseToUser(resp: AuthResponseDto): User {
+interface ProfileRow {
+  id: string;
+  email: string;
+  full_name: string;
+  mobile_number: string;
+  role: string;
+  ward: string | null;
+  department: string | null;
+  access_status?: string;
+}
+
+function profileToUser(p: ProfileRow): User {
   return {
-    id: resp.userId,
-    name: resp.fullName,
-    email: resp.email,
-    role: mapRole(resp.role),
-    phone: resp.mobileNumber,
-    area: resp.ward || 'Pimpri-Chinchwad',
+    id: p.id,
+    name: p.full_name,
+    email: p.email,
+    role: mapRole(p.role),
+    phone: p.mobile_number,
+    area: p.ward || 'Pimpri-Chinchwad',
   };
 }
 
-function userResponseToUser(resp: UserResponseDto): User {
-  return {
-    id: String(resp.id),
-    name: resp.fullName,
-    email: resp.email,
-    role: mapRole(resp.role),
-    phone: resp.mobileNumber,
-    area: resp.ward || 'Pimpri-Chinchwad',
-  };
-}
+const PRIVILEGED_ROLES = ['MUNICIPAL_AUTHORITY', 'FIELD_WORKFORCE', 'INFLUENCER_REPORTER'];
 
 export interface ApiSignupResult {
   token: string;
@@ -125,52 +128,144 @@ export interface ApiSignupResult {
 }
 
 export async function apiSignup(req: AuthSignupRequest): Promise<ApiSignupResult> {
-  const res = await fetch(`${API_BASE}/api/auth/signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req),
+  const requestedRole = (req.role || 'CITIZEN').toUpperCase();
+  const isPrivileged = PRIVILEGED_ROLES.includes(requestedRole);
+  const assignedRole = isPrivileged ? 'CITIZEN' : requestedRole;
+  const accessStatus = isPrivileged ? 'PENDING' : 'APPROVED';
+
+  const { data, error } = await supabase.auth.signUp({
+    email: req.email,
+    password: req.password,
   });
-  const data = await handleResponse<AuthResponseDto>(res);
-  saveToken(data.token);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data.user) {
+    throw new Error('Sign up failed: no user returned');
+  }
+
+  const { error: insertError } = await supabase.from('profiles').insert({
+    id: data.user.id,
+    email: req.email,
+    full_name: req.fullName,
+    mobile_number: req.mobileNumber,
+    role: assignedRole,
+    access_status: accessStatus,
+    requested_role: isPrivileged ? requestedRole : null,
+  });
+
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
+
+  const token = data.session?.access_token || '';
+  if (token) saveToken(token);
+
+  const user = profileToUser({
+    id: data.user.id,
+    email: req.email,
+    full_name: req.fullName,
+    mobile_number: req.mobileNumber,
+    role: assignedRole,
+    ward: null,
+    department: null,
+  });
+
   return {
-    token: data.token,
-    user: authResponseToUser(data),
-    accessStatus: data.accessStatus,
-    requestedRole: data.requestedRole,
+    token,
+    user,
+    accessStatus,
+    requestedRole: isPrivileged ? requestedRole : null,
   };
 }
 
 export async function apiSignin(req: AuthSigninRequest): Promise<{ token: string; user: User }> {
-  const res = await fetch(`${API_BASE}/api/auth/signin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req),
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: req.email,
+    password: req.password,
   });
-  const data = await handleResponse<AuthResponseDto>(res);
-  saveToken(data.token);
-  return { token: data.token, user: authResponseToUser(data) };
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data.user) {
+    throw new Error('Sign in failed: no user returned');
+  }
+
+  const token = data.session?.access_token || '';
+  if (token) saveToken(token);
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, mobile_number, role, ward, department, access_status')
+    .eq('id', data.user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  if (!profile) {
+    throw new Error('Profile not found. Please contact an administrator.');
+  }
+
+  if (profile.access_status === 'PENDING') {
+    await supabase.auth.signOut();
+    clearToken();
+    throw new Error('Your account is pending admin approval. Please wait for an administrator to approve your request.');
+  }
+
+  if (profile.access_status === 'REJECTED') {
+    await supabase.auth.signOut();
+    clearToken();
+    throw new Error('Your access request has been rejected. Please contact an administrator.');
+  }
+
+  const user = profileToUser(profile);
+  return { token, user };
 }
 
 export async function apiGetMe(): Promise<User> {
-  const res = await fetch(`${API_BASE}/api/auth/me`, {
-    headers: { ...authHeaders() },
-  });
-  const data = await handleResponse<UserResponseDto>(res);
-  return userResponseToUser(data);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, mobile_number, role, ward, department')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!profile) {
+    throw new Error('Profile not found');
+  }
+
+  return profileToUser(profile);
 }
 
 export async function isBackendAvailable(): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/api/auth/signin`, {
-      method: 'OPTIONS',
-    });
-    return res.ok || res.status === 401 || res.status === 400;
-  } catch {
-    return false;
+  if (import.meta.env.VITE_API_URL) {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/signin`, {
+        method: 'OPTIONS',
+      });
+      return res.ok || res.status === 401 || res.status === 400;
+    } catch {
+      return false;
+    }
   }
+  return false;
 }
 
-// ---- Complaint API ----
+// ---- Complaint API (uses Spring Boot backend if VITE_API_URL is set) ----
 
 export interface ComplaintRequestDto {
   title: string;
@@ -260,7 +355,7 @@ export async function apiUpdateComplaintStatus(id: string, status: string, taskS
   return handleResponse<ComplaintResponseDto>(res);
 }
 
-// ---- Chat API ----
+// ---- Chat API (uses Spring Boot backend if VITE_API_URL is set) ----
 
 export interface ChatMessageDto {
   message: string;
@@ -329,7 +424,7 @@ export async function apiDeleteConversation(id: number): Promise<void> {
   }
 }
 
-// ---- Admin Access Request API ----
+// ---- Admin Access Request API (Supabase-backed) ----
 
 export interface AccessRequestDto {
   id: number;
@@ -343,24 +438,57 @@ export interface AccessRequestDto {
 }
 
 export async function apiGetPendingRequests(): Promise<AccessRequestDto[]> {
-  const res = await fetch(`${API_BASE}/api/admin/access-requests`, {
-    headers: { ...authHeaders() },
-  });
-  return handleResponse<AccessRequestDto[]>(res);
+  const { data, error } = await supabase.rpc('get_pending_access_requests');
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) return [];
+  return (data as Record<string, unknown>[]).map((row) => ({
+    id: row.id as unknown as number,
+    fullName: row.full_name as string,
+    email: row.email as string,
+    mobileNumber: row.mobile_number as string,
+    currentRole: row.user_role as string,
+    requestedRole: (row.requested_role as string) || null,
+    accessStatus: row.access_status as string,
+    createdAt: row.created_at as string,
+  }));
 }
 
 export async function apiApproveRequest(userId: number): Promise<AccessRequestDto> {
-  const res = await fetch(`${API_BASE}/api/admin/access-requests/${userId}/approve`, {
-    method: 'PUT',
-    headers: { ...authHeaders() },
+  const { error } = await supabase.rpc('approve_access_request', {
+    target_uuid: userId as unknown as string,
   });
-  return handleResponse<AccessRequestDto>(res);
+  if (error) {
+    throw new Error(error.message);
+  }
+  return {
+    id: userId,
+    fullName: '',
+    email: '',
+    mobileNumber: '',
+    currentRole: '',
+    requestedRole: null,
+    accessStatus: 'APPROVED',
+    createdAt: '',
+  };
 }
 
 export async function apiRejectRequest(userId: number): Promise<AccessRequestDto> {
-  const res = await fetch(`${API_BASE}/api/admin/access-requests/${userId}/reject`, {
-    method: 'PUT',
-    headers: { ...authHeaders() },
+  const { error } = await supabase.rpc('reject_access_request', {
+    target_uuid: userId as unknown as string,
   });
-  return handleResponse<AccessRequestDto>(res);
+  if (error) {
+    throw new Error(error.message);
+  }
+  return {
+    id: userId,
+    fullName: '',
+    email: '',
+    mobileNumber: '',
+    currentRole: '',
+    requestedRole: null,
+    accessStatus: 'REJECTED',
+    createdAt: '',
+  };
 }
