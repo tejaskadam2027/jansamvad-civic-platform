@@ -212,6 +212,15 @@ export default function LoginScreen() {
                   {t('auth.signup')}
                 </button>
               </p>
+              <div className="pt-3 mt-3 border-t border-gray-100 text-center">
+                <button
+                  type="button"
+                  onClick={() => { setSiEmail('admin@jansamvad.gov.in'); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+                >
+                  {t('auth.adminAccess')}
+                </button>
+              </div>
             </form>
           )}
 

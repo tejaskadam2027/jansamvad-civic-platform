@@ -29,7 +29,7 @@ const translations: Record<Lang, Dict> = {
     'app.name': 'JanSamvad',
     'app.tagline': 'AI-Powered Municipal Corporation Platform',
     'app.desc': 'Connecting citizens, authorities, field workforce, and influencers for better civic services.',
-    'app.prototype': 'JanSamvad uses simulated authentication for this prototype',
+    'app.prototype': 'Secure authentication powered by Supabase',
 
     // Auth
     'auth.signin': 'Sign In',
@@ -70,6 +70,7 @@ const translations: Record<Lang, Dict> = {
     'auth.rolePendingNote': 'This role requires administrator approval. Your request will be reviewed before you can sign in.',
     'auth.pendingRequest': 'Access request submitted! An administrator will review your request. You can sign in once approved.',
     'auth.requestSubmitted': 'Access request submitted for approval.',
+    'auth.adminAccess': 'Administrator sign in',
 
     // Role selection
     'role.title': 'Choose Your Role',
@@ -450,7 +451,7 @@ const translations: Record<Lang, Dict> = {
     'app.name': 'जनसंवाद',
     'app.tagline': 'एआय-संचालित महानगरपालिका मंच',
     'app.desc': 'चांगल्या नागरी सेवांसाठी नागरिक, अधिकाऱ्यांची, क्षेत्र कार्यसैनिकांची आणि प्रभावशाली लोकांची जोडणी करणे.',
-    'app.prototype': 'जनसंवाद हे या प्रोटोटाइपसाठी अनुकरणीय प्रमाणीकरण वापरतो',
+    'app.prototype': 'जनसंवाद सुरक्षित प्रमाणीकरण वापरतो (Supabase)',
 
     // Auth
     'auth.signin': 'साइन इन',
@@ -839,7 +840,7 @@ const translations: Record<Lang, Dict> = {
     'app.name': 'जनसंवाद',
     'app.tagline': 'एआय-संचालित नगर निगम मंच',
     'app.desc': 'बेहतर नागरिक सेवाओं के लिए नागरिकों, अधिकारियों, क्षेत्र कार्यबल और प्रभावशाली लोगों को जोड़ना।',
-    'app.prototype': 'जनसंवाद इस प्रोटोटाइप के लिए अनुकरणीय प्रमाणीकरण का उपयोग करता है',
+    'app.prototype': 'जनसंवाद सुरक्षित प्रमाणीकरण का उपयोग करता है (Supabase)',
 
     // Auth
     'auth.signin': 'साइन इन',
