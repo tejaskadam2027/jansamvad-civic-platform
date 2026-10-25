@@ -3,17 +3,19 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-const missing = !url || !anonKey;
-
-if (missing) {
-  console.warn('VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY not set; Supabase features will be unavailable. Restart the dev server after adding them to .env.');
+if (!url || !anonKey) {
+  console.error(
+    'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are missing. Check .env and restart the dev server.'
+  );
 }
 
-export const supabase: SupabaseClient = missing
-  ? ({} as SupabaseClient)
-  : createClient(url as string, anonKey as string, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    });
+export const supabase: SupabaseClient = createClient(
+  (url as string) ?? 'https://placeholder.supabase.co',
+  (anonKey as string) ?? 'placeholder-anon-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  }
+);
