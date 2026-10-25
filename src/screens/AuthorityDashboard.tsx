@@ -11,8 +11,6 @@ import { useI18n } from '@/lib/i18n';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import type { Complaint, Priority } from '@/lib/types';
 
-const navItems: NavItem[] = [];
-
 function useNavItems(): NavItem[] {
   const { t } = useI18n();
   return [
@@ -131,12 +129,23 @@ function ComplaintManagement() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        {['All', 'Submitted', 'Verified', 'Assigned', 'In Progress', 'Resolved', 'Rejected'].map((f) => (
+        {['All', 'Submitted', 'Verified', 'Assigned', 'In Progress', 'Resolved', 'Rejected'].map((f) => {
+          const filterKeyMap: Record<string, string> = {
+            'All': 'filter.all',
+            'Submitted': 'filter.submitted',
+            'Verified': 'filter.verified',
+            'Assigned': 'filter.assigned',
+            'In Progress': 'filter.inProgress',
+            'Resolved': 'filter.resolved',
+            'Rejected': 'filter.rejected',
+          };
+          return (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filter === f ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-            {f === 'All' ? t('filter.all') : t(`filter.${f.toLowerCase().replace(' ', '').replace('progress', 'InProgress')}`) || t(`status.${f}`)}
+            {t(filterKeyMap[f])}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

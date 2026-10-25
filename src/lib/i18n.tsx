@@ -440,6 +440,9 @@ const translations: Record<Lang, Dict> = {
     'admin.rejectedCount': 'Rejected',
     'admin.loading': 'Loading requests...',
     'admin.loadError': 'Failed to load access requests. Please try again.',
+    'admin.refresh': 'Refresh',
+    'admin.failApprove': 'Failed to approve',
+    'admin.failReject': 'Failed to reject',
   },
 
   mr: {

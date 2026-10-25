@@ -427,7 +427,7 @@ export async function apiDeleteConversation(id: number): Promise<void> {
 // ---- Admin Access Request API (Supabase-backed) ----
 
 export interface AccessRequestDto {
-  id: number;
+  id: string;
   fullName: string;
   email: string;
   mobileNumber: string;
@@ -444,7 +444,7 @@ export async function apiGetPendingRequests(): Promise<AccessRequestDto[]> {
   }
   if (!data) return [];
   return (data as Record<string, unknown>[]).map((row) => ({
-    id: row.id as unknown as number,
+    id: String(row.id),
     fullName: row.full_name as string,
     email: row.email as string,
     mobileNumber: row.mobile_number as string,
@@ -455,9 +455,9 @@ export async function apiGetPendingRequests(): Promise<AccessRequestDto[]> {
   }));
 }
 
-export async function apiApproveRequest(userId: number): Promise<AccessRequestDto> {
+export async function apiApproveRequest(userId: string): Promise<AccessRequestDto> {
   const { error } = await supabase.rpc('approve_access_request', {
-    target_uuid: userId as unknown as string,
+    target_uuid: userId,
   });
   if (error) {
     throw new Error(error.message);
@@ -474,9 +474,9 @@ export async function apiApproveRequest(userId: number): Promise<AccessRequestDt
   };
 }
 
-export async function apiRejectRequest(userId: number): Promise<AccessRequestDto> {
+export async function apiRejectRequest(userId: string): Promise<AccessRequestDto> {
   const { error } = await supabase.rpc('reject_access_request', {
-    target_uuid: userId as unknown as string,
+    target_uuid: userId,
   });
   if (error) {
     throw new Error(error.message);

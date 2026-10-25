@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   const [requests, setRequests] = useState<AccessRequestDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState('requests');
 
   const loadRequests = useCallback(async () => {
@@ -32,28 +32,28 @@ export default function AdminDashboard() {
     loadRequests();
   }, [loadRequests]);
 
-  const handleApprove = async (userId: number) => {
+  const handleApprove = async (userId: string) => {
     setActionLoading(userId);
     try {
       await apiApproveRequest(userId);
       setRequests((prev) => prev.filter((r) => r.id !== userId));
       toast(t('admin.approved'), 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to approve';
+      const message = err instanceof Error ? err.message : t('admin.failApprove');
       toast(message, 'warning');
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleReject = async (userId: number) => {
+  const handleReject = async (userId: string) => {
     setActionLoading(userId);
     try {
       await apiRejectRequest(userId);
       setRequests((prev) => prev.filter((r) => r.id !== userId));
       toast(t('admin.rejected'), 'info');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to reject';
+      const message = err instanceof Error ? err.message : t('admin.failReject');
       toast(message, 'warning');
     } finally {
       setActionLoading(null);
@@ -104,7 +104,7 @@ export default function AdminDashboard() {
             className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('admin.refresh')}
           </button>
         </div>
 
