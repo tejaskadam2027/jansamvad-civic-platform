@@ -1,5 +1,6 @@
 import type { Role, User } from './types';
 import { supabase } from './supabase';
+import { analyzeComplaintEnhanced } from './ai';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 const TOKEN_KEY = 'jansamvad_jwt_token_v1';
@@ -385,6 +386,9 @@ export interface ChatMessageItemDto {
 }
 
 export async function apiSendMessage(message: string, conversationId?: number): Promise<ChatReplyDto> {
+  if (!import.meta.env.VITE_API_URL) {
+    return localChatReply(message);
+  }
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/chat/message`, {
@@ -393,14 +397,20 @@ export async function apiSendMessage(message: string, conversationId?: number): 
       body: JSON.stringify({ message, conversationId }),
     });
   } catch {
-    throw new Error(
-      `Cannot reach backend at ${API_BASE}. The Spring Boot server is not running or VITE_API_URL is not set correctly.`
-    );
+    return localChatReply(message);
   }
   return handleResponse<ChatReplyDto>(res);
 }
 
+function localChatReply(message: string): ChatReplyDto {
+  const text = message.replace(/^\[(marathi|hindi)\]\s*/i, '');
+  const analysis = analyzeComplaintEnhanced(text);
+  const reply = `I've analyzed your query. Based on the description, this appears to be a "${analysis.category}" issue under the ${analysis.department}.\n\nPriority: ${analysis.priority} (confidence: ${analysis.confidence}%)\n\nRecommended action: ${analysis.suggestedAction}\n\nYou can file a complaint through the Citizen Dashboard, and it will be automatically routed to the correct department.`;
+  return { conversationId: Date.now(), reply };
+}
+
 export async function apiGetConversations(): Promise<ChatConversationDto[]> {
+  if (!import.meta.env.VITE_API_URL) return [];
   const res = await fetch(`${API_BASE}/api/chat/conversations`, {
     headers: { ...authHeaders() },
   });
@@ -415,6 +425,7 @@ export async function apiGetConversationMessages(id: number): Promise<ChatConver
 }
 
 export async function apiDeleteConversation(id: number): Promise<void> {
+  if (!import.meta.env.VITE_API_URL) return;
   const res = await fetch(`${API_BASE}/api/chat/conversations/${id}`, {
     method: 'DELETE',
     headers: { ...authHeaders() },

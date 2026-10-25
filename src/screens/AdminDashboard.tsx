@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, CircleCheck as CheckCircle2, Circle as XCircle, Clock, RefreshCw, CircleAlert as AlertCircle } from 'lucide-react';
+import { ShieldCheck, CircleCheck as CheckCircle2, Circle as XCircle, Clock, RefreshCw, CircleAlert as AlertCircle, Users, Building2, HardHat, Megaphone } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { apiGetPendingRequests, apiApproveRequest, apiRejectRequest, type AccessRequestDto } from '@/lib/api';
+import CitizenDashboard from '@/screens/CitizenDashboard';
+import AuthorityDashboard from '@/screens/AuthorityDashboard';
+import WorkforceDashboard from '@/screens/WorkforceDashboard';
+import InfluencerDashboard from '@/screens/InfluencerDashboard';
 
 export default function AdminDashboard() {
   const { currentUser, toast } = useStore();
@@ -77,7 +81,16 @@ export default function AdminDashboard() {
 
   const navItems = [
     { id: 'requests', label: t('admin.pendingRequests'), icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: 'preview-citizen', label: t('role.citizen'), icon: <Users className="w-4 h-4" /> },
+    { id: 'preview-authority', label: t('role.authority'), icon: <Building2 className="w-4 h-4" /> },
+    { id: 'preview-workforce', label: t('role.workforce'), icon: <HardHat className="w-4 h-4" /> },
+    { id: 'preview-influencer', label: t('role.influencer'), icon: <Megaphone className="w-4 h-4" /> },
   ];
+
+  if (activeNav === 'preview-citizen') return <CitizenDashboard />;
+  if (activeNav === 'preview-authority') return <AuthorityDashboard />;
+  if (activeNav === 'preview-workforce') return <WorkforceDashboard />;
+  if (activeNav === 'preview-influencer') return <InfluencerDashboard />;
 
   return (
     <DashboardLayout
