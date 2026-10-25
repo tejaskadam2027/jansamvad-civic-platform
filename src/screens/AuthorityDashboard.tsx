@@ -24,7 +24,7 @@ function useNavItems(): NavItem[] {
   ];
 }
 
-export default function AuthorityDashboard() {
+export default function AuthorityDashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeNav, setActiveNav] = useState('dashboard');
   const { t } = useI18n();
   const navItems = useNavItems();
@@ -34,9 +34,8 @@ export default function AuthorityDashboard() {
   };
   const { complaints } = useStore();
 
-  return (
-    <DashboardLayout navItems={navItems} activeNav={activeNav} onNavChange={setActiveNav}
-      title={titles[activeNav]} subtitle={t('layout.municipalCorp')} role="authority">
+  const content = (
+    <>
       {activeNav === 'dashboard' && <Overview complaints={complaints} onNavChange={setActiveNav} />}
       {activeNav === 'complaints' && <ComplaintManagement />}
       {activeNav === 'map' && <MapView />}
@@ -44,6 +43,15 @@ export default function AuthorityDashboard() {
       {activeNav === 'workforce' && <WorkforceView />}
       {activeNav === 'analytics' && <AnalyticsView />}
       {activeNav === 'notifications' && <NotificationsView />}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <DashboardLayout navItems={navItems} activeNav={activeNav} onNavChange={setActiveNav}
+      title={titles[activeNav]} subtitle={t('layout.municipalCorp')} role="authority">
+      {content}
     </DashboardLayout>
   );
 }

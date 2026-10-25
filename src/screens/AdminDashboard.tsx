@@ -9,6 +9,14 @@ import AuthorityDashboard from '@/screens/AuthorityDashboard';
 import WorkforceDashboard from '@/screens/WorkforceDashboard';
 import InfluencerDashboard from '@/screens/InfluencerDashboard';
 
+const ADMIN_SECTIONS = ['requests', 'preview-citizen', 'preview-authority', 'preview-workforce', 'preview-influencer'] as const;
+type AdminSection = (typeof ADMIN_SECTIONS)[number];
+
+function readHashSection(): AdminSection {
+  const h = window.location.hash.replace(/^#/, '');
+  return (ADMIN_SECTIONS as readonly string[]).includes(h) ? (h as AdminSection) : 'requests';
+}
+
 export default function AdminDashboard() {
   const { currentUser, toast } = useStore();
   const { t } = useI18n();
@@ -16,7 +24,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [activeNav, setActiveNav] = useState('requests');
+  const [activeNav, setActiveNav] = useState<AdminSection>(readHashSection);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
@@ -35,6 +43,18 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadRequests();
   }, [loadRequests]);
+
+  useEffect(() => {
+    const onHash = () => setActiveNav(readHashSection());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hash.replace(/^#/, '') !== activeNav) {
+      window.location.hash = activeNav;
+    }
+  }, [activeNav]);
 
   const handleApprove = async (userId: string) => {
     setActionLoading(userId);
@@ -87,20 +107,35 @@ export default function AdminDashboard() {
     { id: 'preview-influencer', label: t('role.influencer'), icon: <Megaphone className="w-4 h-4" /> },
   ];
 
-  if (activeNav === 'preview-citizen') return <CitizenDashboard />;
-  if (activeNav === 'preview-authority') return <AuthorityDashboard />;
-  if (activeNav === 'preview-workforce') return <WorkforceDashboard />;
-  if (activeNav === 'preview-influencer') return <InfluencerDashboard />;
+  const sectionTitles: Record<AdminSection, string> = {
+    'requests': t('admin.title'),
+    'preview-citizen': t('role.citizen'),
+    'preview-authority': t('role.authority'),
+    'preview-workforce': t('role.workforce'),
+    'preview-influencer': t('role.influencer'),
+  };
+  const sectionSubtitles: Record<AdminSection, string> = {
+    'requests': t('admin.subtitle'),
+    'preview-citizen': t('role.portal', { label: t('role.citizen') }),
+    'preview-authority': t('role.portal', { label: t('role.authority') }),
+    'preview-workforce': t('role.portal', { label: t('role.workforce') }),
+    'preview-influencer': t('role.portal', { label: t('role.influencer') }),
+  };
 
   return (
     <DashboardLayout
       navItems={navItems}
       activeNav={activeNav}
-      onNavChange={setActiveNav}
-      title={t('admin.title')}
-      subtitle={t('admin.subtitle')}
+      onNavChange={(id) => setActiveNav(id as AdminSection)}
+      title={sectionTitles[activeNav]}
+      subtitle={sectionSubtitles[activeNav]}
       role="admin"
     >
+      {activeNav === 'preview-citizen' && <CitizenDashboard embedded />}
+      {activeNav === 'preview-authority' && <AuthorityDashboard embedded />}
+      {activeNav === 'preview-workforce' && <WorkforceDashboard embedded />}
+      {activeNav === 'preview-influencer' && <InfluencerDashboard embedded />}
+      {activeNav === 'requests' && (
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Summary */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
@@ -200,6 +235,7 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+      )}
     </DashboardLayout>
   );
 }

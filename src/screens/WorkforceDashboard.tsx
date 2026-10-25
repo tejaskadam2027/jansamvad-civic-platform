@@ -19,7 +19,7 @@ function useWorkforceNavItems(): NavItem[] {
   ];
 }
 
-export default function WorkforceDashboard() {
+export default function WorkforceDashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeNav, setActiveNav] = useState('dashboard');
   const { t } = useI18n();
   const navItems = useWorkforceNavItems();
@@ -28,13 +28,21 @@ export default function WorkforceDashboard() {
     history: t('nav.history'), profile: t('nav.profile'),
   };
 
-  return (
-    <DashboardLayout navItems={navItems} activeNav={activeNav} onNavChange={setActiveNav}
-      title={titles[activeNav]} subtitle={t('layout.fieldOps')} role="workforce">
+  const content = (
+    <>
       {activeNav === 'dashboard' && <Overview onNavChange={setActiveNav} />}
       {activeNav === 'tasks' && <MyTasks />}
       {activeNav === 'history' && <TaskHistory />}
       {activeNav === 'profile' && <ProfileView />}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <DashboardLayout navItems={navItems} activeNav={activeNav} onNavChange={setActiveNav}
+      title={titles[activeNav]} subtitle={t('layout.fieldOps')} role="workforce">
+      {content}
     </DashboardLayout>
   );
 }

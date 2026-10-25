@@ -24,7 +24,7 @@ function useInfluencerNavItems(): NavItem[] {
   ];
 }
 
-export default function InfluencerDashboard() {
+export default function InfluencerDashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeNav, setActiveNav] = useState('dashboard');
   const { t } = useI18n();
   const navItems = useInfluencerNavItems();
@@ -33,15 +33,23 @@ export default function InfluencerDashboard() {
     analytics: t('nav.analytics'), referrals: t('nav.referrals'), profile: t('nav.profile'),
   };
 
-  return (
-    <DashboardLayout navItems={navItems} activeNav={activeNav} onNavChange={setActiveNav}
-      title={titles[activeNav]} subtitle={t('layout.civicAwareness')} role="influencer">
+  const content = (
+    <>
       {activeNav === 'dashboard' && <Overview onNavChange={setActiveNav} />}
       {activeNav === 'campaigns' && <CampaignsView />}
       {activeNav === 'create' && <CreateCampaign onNavChange={setActiveNav} />}
       {activeNav === 'analytics' && <AnalyticsView />}
       {activeNav === 'referrals' && <ReferralsView />}
       {activeNav === 'profile' && <ProfileView />}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <DashboardLayout navItems={navItems} activeNav={activeNav} onNavChange={setActiveNav}
+      title={titles[activeNav]} subtitle={t('layout.civicAwareness')} role="influencer">
+      {content}
     </DashboardLayout>
   );
 }

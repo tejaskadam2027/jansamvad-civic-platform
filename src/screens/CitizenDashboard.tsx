@@ -15,7 +15,7 @@ import type { Complaint } from '@/lib/types';
 
 const AREAS = ['Akurdi', 'Nigdi', 'Pimpri', 'Wakad', 'Chinchwad', 'Bhosari', 'Hinjewadi'];
 
-export default function CitizenDashboard() {
+export default function CitizenDashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useI18n();
   const [activeNav, setActiveNav] = useState('dashboard');
   const { currentUser, complaints, rewards, citizens, fetchUserComplaints } = useStore();
@@ -47,6 +47,20 @@ export default function CitizenDashboard() {
     track: t('nav.track'), rewards: t('nav.rewards'), notifications: t('nav.notifications'), profile: t('nav.profile'),
   };
 
+  const content = (
+    <>
+      {activeNav === 'dashboard' && <Overview myComplaints={myComplaints} totalPoints={totalPoints} pending={pending} resolved={resolved} onNavChange={setActiveNav} />}
+      {activeNav === 'report' && <ReportComplaint onNavChange={setActiveNav} />}
+      {activeNav === 'complaints' && <MyComplaints complaints={myComplaints} />}
+      {activeNav === 'track' && <TrackComplaint />}
+      {activeNav === 'rewards' && <Rewards myRewards={myRewards} totalPoints={totalPoints} citizens={citizens} currentUserId={currentUser?.id || ''} />}
+      {activeNav === 'notifications' && <NotificationsView />}
+      {activeNav === 'profile' && <ProfileView />}
+    </>
+  );
+
+  if (embedded) return content;
+
   return (
     <DashboardLayout
       navItems={navItems}
@@ -56,13 +70,7 @@ export default function CitizenDashboard() {
       subtitle={t('layout.welcomeBack', { name: currentUser?.name || '' })}
       role="citizen"
     >
-      {activeNav === 'dashboard' && <Overview myComplaints={myComplaints} totalPoints={totalPoints} pending={pending} resolved={resolved} onNavChange={setActiveNav} />}
-      {activeNav === 'report' && <ReportComplaint onNavChange={setActiveNav} />}
-      {activeNav === 'complaints' && <MyComplaints complaints={myComplaints} />}
-      {activeNav === 'track' && <TrackComplaint />}
-      {activeNav === 'rewards' && <Rewards myRewards={myRewards} totalPoints={totalPoints} citizens={citizens} currentUserId={currentUser?.id || ''} />}
-      {activeNav === 'notifications' && <NotificationsView />}
-      {activeNav === 'profile' && <ProfileView />}
+      {content}
     </DashboardLayout>
   );
 }
