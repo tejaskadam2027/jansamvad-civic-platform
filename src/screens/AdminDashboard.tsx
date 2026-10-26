@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ShieldCheck, CircleCheck as CheckCircle2, Circle as XCircle, Clock, RefreshCw, CircleAlert as AlertCircle, Users, Building2, HardHat, Megaphone } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { apiGetPendingRequests, apiApproveRequest, apiRejectRequest, type AccessRequestDto } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import CitizenDashboard from '@/screens/CitizenDashboard';
 import AuthorityDashboard from '@/screens/AuthorityDashboard';
 import WorkforceDashboard from '@/screens/WorkforceDashboard';
@@ -40,9 +41,46 @@ export default function AdminDashboard() {
     }
   }, [t]);
 
+  const loadRequestsRef = useRef(loadRequests);
+  loadRequestsRef.current = loadRequests;
+
   useEffect(() => {
     loadRequests();
   }, [loadRequests]);
+
+  // Realtime: refetch pending requests whenever a profiles row changes (signup/approve/reject).
+  useEffect(() => {
+    let active = true;
+    const channel = supabase
+      .channel('profiles-pending-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => {
+          if (active) loadRequestsRef.current();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Refetch when the tab regains focus, so cross-tab changes are picked up quickly.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadRequestsRef.current();
+    };
+    const onFocus = () => loadRequestsRef.current();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   useEffect(() => {
     const onHash = () => setActiveNav(readHashSection());
