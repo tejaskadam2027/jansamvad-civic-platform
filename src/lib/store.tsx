@@ -12,7 +12,7 @@ import type {
 import { getInitialState } from './mockData';
 import { analyzeComplaint } from './ai';
 import { saveSession, loadSession, clearSession, savePendingUser, loadPendingUser, clearPendingUser, clearToken } from './auth';
-import { apiSignup, apiSignin, apiGetMe, getToken, apiCreateComplaint, apiGetUserComplaints, apiGetComplaint, type ComplaintResponseDto } from './api';
+import { apiSignup, apiSignin, apiGetMe, getToken } from './api';
 import { supabase } from './supabase';
 
 const STORAGE_KEY = 'jansamvad_state_v1';
@@ -28,6 +28,7 @@ interface StoreContextValue extends AppState {
   signIn: (email: string, password: string) => Promise<{ ok: true; user: User } | { ok: false; error: string }>;
   addComplaint: (c: Omit<Complaint, 'id' | 'status' | 'timeline' | 'createdAt' | 'rewardPoints'>) => Promise<Complaint>;
   fetchUserComplaints: (userId: string) => Promise<void>;
+  fetchAllComplaints: () => Promise<void>;
   fetchComplaint: (id: string) => Promise<Complaint | null>;
   updateComplaint: (id: string, patch: Partial<Complaint>) => void;
   addTimelineEvent: (id: string, status: string, actor: string, note?: string) => void;
@@ -71,13 +72,6 @@ function loadInitialPending(): User | null {
   return loadPendingUser();
 }
 
-let complaintCounter = 1;
-
-function generateComplaintId(): string {
-  const num = String(complaintCounter++).padStart(6, '0');
-  return `JS-2026-${num}`;
-}
-
 function mapBackendStatus(status: string): Complaint['status'] {
   const map: Record<string, Complaint['status']> = {
     'REGISTERED': 'Submitted',
@@ -99,36 +93,56 @@ function mapBackendPriority(priority: string | null): Priority {
   return 'Medium';
 }
 
-function mapBackendComplaint(dto: ComplaintResponseDto): Complaint {
+interface DbComplaintRow {
+  complaint_number: string;
+  citizen_id: string;
+  citizen_name: string;
+  title: string;
+  description: string;
+  category: string;
+  department: string;
+  priority: string | null;
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  image_url: string | null;
+  video_name: string | null;
+  status: string;
+  task_status: string | null;
+  assigned_worker_id: string | null;
+  assigned_worker_name: string | null;
+  before_photo_url: string | null;
+  after_photo_url: string | null;
+  resolution_note: string | null;
+  reward_points: number;
+  created_at: string;
+}
+
+function mapDbComplaint(row: DbComplaintRow): Complaint {
   return {
-    id: dto.complaintNumber || String(dto.id),
-    title: dto.title,
-    description: dto.description,
-    category: dto.category,
-    department: dto.department || '',
-    priority: mapBackendPriority(dto.priority),
-    confidence: dto.aiConfidence != null ? dto.aiConfidence : 0,
-    location: dto.location || '',
-    coordinates: { lat: dto.latitude || 0, lng: dto.longitude || 0 },
-    citizenId: String(dto.citizenId),
-    citizenName: dto.citizenName,
-    status: mapBackendStatus(dto.status),
-    taskStatus: dto.taskStatus as Complaint['taskStatus'] || undefined,
-    assignedWorkforceId: dto.assignedWorkerId != null ? String(dto.assignedWorkerId) : undefined,
-    assignedWorkforceName: dto.assignedWorkerName || undefined,
-    imageUrl: dto.imageUrl || undefined,
-    videoName: dto.videoName || undefined,
-    beforePhotoUrl: dto.beforePhotoUrl || undefined,
-    afterPhotoUrl: dto.afterPhotoUrl || undefined,
-    resolutionNote: dto.resolutionNote || undefined,
-    rewardPoints: dto.rewardPoints,
-    createdAt: dto.createdAt ? new Date(dto.createdAt).getTime() : Date.now(),
-    timeline: (dto.timeline || []).map((t) => ({
-      status: t.status,
-      timestamp: t.timestamp ? new Date(t.timestamp).getTime() : Date.now(),
-      actor: t.actor,
-      note: t.note || undefined,
-    })),
+    id: row.complaint_number,
+    title: row.title,
+    description: row.description,
+    category: row.category,
+    department: row.department || '',
+    priority: mapBackendPriority(row.priority),
+    confidence: 0,
+    location: row.location || '',
+    coordinates: { lat: row.latitude || 0, lng: row.longitude || 0 },
+    citizenId: row.citizen_id,
+    citizenName: row.citizen_name,
+    status: mapBackendStatus(row.status),
+    taskStatus: (row.task_status as Complaint['taskStatus']) || undefined,
+    assignedWorkforceId: row.assigned_worker_id || undefined,
+    assignedWorkforceName: row.assigned_worker_name || undefined,
+    imageUrl: row.image_url || undefined,
+    videoName: row.video_name || undefined,
+    beforePhotoUrl: row.before_photo_url || undefined,
+    afterPhotoUrl: row.after_photo_url || undefined,
+    resolutionNote: row.resolution_note || undefined,
+    rewardPoints: row.reward_points,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    timeline: [],
   };
 }
 
@@ -300,88 +314,96 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addComplaint = useCallback(
     async (c: Omit<Complaint, 'id' | 'status' | 'timeline' | 'createdAt' | 'rewardPoints'>) => {
-      try {
-        const dto = await apiCreateComplaint({
+      // Persist to Supabase complaints table with a server-generated complaint number.
+      const { data: number, error: numError } = await supabase.rpc('next_complaint_number');
+      if (numError || !number) {
+        throw new Error(numError?.message || 'Could not generate complaint number');
+      }
+
+      const { data: row, error: insertError } = await supabase
+        .from('complaints')
+        .insert({
+          complaint_number: number,
+          citizen_id: c.citizenId,
+          citizen_name: c.citizenName,
           title: c.title,
           description: c.description,
           category: c.category,
-          location: c.location,
-          latitude: c.coordinates.lat,
-          longitude: c.coordinates.lng,
-          imageUrl: c.imageUrl,
-          videoName: c.videoName,
-          priority: c.priority.toUpperCase(),
           department: c.department,
-          aiCategory: c.category,
-          aiDepartment: c.department,
-          aiPriority: c.priority.toUpperCase(),
-          aiConfidence: c.confidence,
-        });
-        const newComplaint = mapBackendComplaint(dto);
-        setState((s) => ({
-          ...s,
-          complaints: [newComplaint, ...s.complaints],
-          rewards: [
-            { id: `r${Date.now()}${Math.random()}`, citizenId: c.citizenId, points: 50, reason: 'Complaint submitted', complaintId: newComplaint.id, timestamp: Date.now() },
-            ...s.rewards,
-          ],
-          notifications: [
-            { id: `n${Date.now()}${Math.random()}`, role: 'citizen' as Role, userId: c.citizenId, title: 'Complaint Submitted', message: `Your complaint ${newComplaint.id} has been submitted. +50 reward points!`, read: false, timestamp: Date.now(), type: 'success' },
-            ...s.notifications,
-          ],
-        }));
-        return newComplaint;
-      } catch {
-        // Fallback to local in-memory creation
-        const id = generateComplaintId();
-        const newComplaint: Complaint = {
-          ...c,
-          id,
-          status: 'Submitted',
-          taskStatus: undefined,
-          rewardPoints: 50,
-          createdAt: Date.now(),
-          timeline: [{ status: 'Submitted', timestamp: Date.now(), actor: c.citizenName }],
-        };
-        setState((s) => ({
-          ...s,
-          complaints: [newComplaint, ...s.complaints],
-          rewards: [
-            { id: `r${Date.now()}${Math.random()}`, citizenId: c.citizenId, points: 50, reason: 'Complaint submitted', complaintId: id, timestamp: Date.now() },
-            ...s.rewards,
-          ],
-          notifications: [
-            { id: `n${Date.now()}${Math.random()}`, role: 'authority' as Role, userId: 'a1', title: 'New Complaint', message: `New complaint ${id} submitted by ${c.citizenName}.`, read: false, timestamp: Date.now(), type: 'info' },
-            { id: `n${Date.now()}${Math.random()}1`, role: 'citizen' as Role, userId: c.citizenId, title: 'Complaint Submitted', message: `Your complaint ${id} has been submitted. +50 reward points!`, read: false, timestamp: Date.now(), type: 'success' },
-            ...s.notifications,
-          ],
-        }));
-        return newComplaint;
+          priority: c.priority.toUpperCase(),
+          location: c.location || null,
+          latitude: c.coordinates.lat || null,
+          longitude: c.coordinates.lng || null,
+          image_url: c.imageUrl || null,
+          video_name: c.videoName || null,
+          status: 'REGISTERED',
+          reward_points: 50,
+        })
+        .select('id, complaint_number, created_at')
+        .single();
+
+      if (insertError || !row) {
+        throw new Error(insertError?.message || 'Failed to save complaint');
       }
+
+      const newComplaint: Complaint = {
+        ...c,
+        id: row.complaint_number,
+        status: 'Submitted',
+        taskStatus: undefined,
+        rewardPoints: 50,
+        createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+        timeline: [{ status: 'Submitted', timestamp: Date.now(), actor: c.citizenName }],
+      };
+      setState((s) => ({
+        ...s,
+        complaints: [newComplaint, ...s.complaints],
+        rewards: [
+          { id: `r${Date.now()}${Math.random()}`, citizenId: c.citizenId, points: 50, reason: 'Complaint submitted', complaintId: newComplaint.id, timestamp: Date.now() },
+          ...s.rewards,
+        ],
+        notifications: [
+          { id: `n${Date.now()}${Math.random()}`, role: 'citizen' as Role, userId: c.citizenId, title: 'Complaint Submitted', message: `Your complaint ${newComplaint.id} has been submitted. +50 reward points!`, read: false, timestamp: Date.now(), type: 'success' },
+          ...s.notifications,
+        ],
+      }));
+      return newComplaint;
     },
     []
   );
 
   const fetchUserComplaints = useCallback(async (userId: string) => {
-    try {
-      const dtos = await apiGetUserComplaints(userId);
-      const complaints = dtos.map(mapBackendComplaint);
-      setState((s) => {
-        const otherComplaints = s.complaints.filter((c) => c.citizenId !== userId);
-        return { ...s, complaints: [...complaints, ...otherComplaints] };
-      });
-    } catch {
-      // Backend unavailable — keep existing in-memory complaints
-    }
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('id, complaint_number, citizen_id, citizen_name, title, description, category, department, priority, location, latitude, longitude, image_url, video_name, status, task_status, assigned_worker_id, assigned_worker_name, before_photo_url, after_photo_url, resolution_note, reward_points, created_at')
+      .eq('citizen_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) return;
+    const complaints = (data || []).map(mapDbComplaint);
+    setState((s) => {
+      const otherComplaints = s.complaints.filter((c) => c.citizenId !== userId);
+      return { ...s, complaints: [...complaints, ...otherComplaints] };
+    });
+  }, []);
+
+  const fetchAllComplaints = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('id, complaint_number, citizen_id, citizen_name, title, description, category, department, priority, location, latitude, longitude, image_url, video_name, status, task_status, assigned_worker_id, assigned_worker_name, before_photo_url, after_photo_url, resolution_note, reward_points, created_at')
+      .order('created_at', { ascending: false });
+    if (error) return;
+    const complaints = (data || []).map(mapDbComplaint);
+    setState((s) => ({ ...s, complaints }));
   }, []);
 
   const fetchComplaint = useCallback(async (id: string): Promise<Complaint | null> => {
-    try {
-      const dto = await apiGetComplaint(id);
-      return mapBackendComplaint(dto);
-    } catch {
-      return null;
-    }
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('id, complaint_number, citizen_id, citizen_name, title, description, category, department, priority, location, latitude, longitude, image_url, video_name, status, task_status, assigned_worker_id, assigned_worker_name, before_photo_url, after_photo_url, resolution_note, reward_points, created_at')
+      .eq('complaint_number', id)
+      .maybeSingle();
+    if (error || !data) return null;
+    return mapDbComplaint(data);
   }, []);
 
   const updateComplaint = useCallback((id: string, patch: Partial<Complaint>) => {
@@ -446,6 +468,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const wf = s.workforce.find((w) => w.id === workforceId);
       const complaint = s.complaints.find((c) => c.id === complaintId);
       if (!wf || !complaint) return s;
+      void supabase.from('complaints').update({ status: 'ASSIGNED', task_status: 'Assigned', assigned_worker_id: workforceId, assigned_worker_name: wf.name, updated_at: new Date().toISOString() }).eq('complaint_number', complaintId);
       return {
         ...s,
         complaints: s.complaints.map((c) =>
@@ -473,6 +496,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setComplaintPriority = useCallback((id: string, priority: Priority) => {
+    void supabase.from('complaints').update({ priority: priority.toUpperCase(), updated_at: new Date().toISOString() }).eq('complaint_number', id);
     setState((s) => ({
       ...s,
       complaints: s.complaints.map((c) =>
@@ -494,6 +518,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         'Resolved': 'Resolved',
       };
       const newStatus = statusMap[taskStatus || ''] || complaint.status;
+      const dbStatusMap: Record<string, string> = { 'Accepted': 'ASSIGNED', 'In Progress': 'IN_PROGRESS', 'Work Completed': 'IN_PROGRESS', 'Resolved': 'RESOLVED' };
+      void supabase.from('complaints').update({ status: dbStatusMap[taskStatus || ''] || complaint.status.toUpperCase().replace(' ', '_'), task_status: taskStatus || null, updated_at: new Date().toISOString() }).eq('complaint_number', id);
       return {
         ...s,
         complaints: s.complaints.map((c) =>
@@ -514,6 +540,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((s) => {
       const complaint = s.complaints.find((c) => c.id === id);
       if (!complaint) return s;
+      void supabase.from('complaints').update({ status: 'RESOLVED', task_status: 'Resolved', before_photo_url: beforePhotoUrl || null, after_photo_url: afterPhotoUrl || null, resolution_note: note || null, reward_points: complaint.rewardPoints + 30, updated_at: new Date().toISOString() }).eq('complaint_number', id);
       return {
         ...s,
         complaints: s.complaints.map((c) =>
@@ -581,6 +608,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     signIn,
     addComplaint,
     fetchUserComplaints,
+    fetchAllComplaints,
     fetchComplaint,
     updateComplaint,
     addTimelineEvent,

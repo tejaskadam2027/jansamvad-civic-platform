@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LayoutDashboard, ClipboardList, Map, Building2, HardHat, ChartBar as BarChart3, Bell, CircleCheck as CheckCircle2, Circle as XCircle, TriangleAlert as AlertTriangle, Clock, MapPin, Cpu, TrendingUp } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
@@ -6,9 +6,11 @@ import { StatusBadge, PriorityBadge } from '@/components/ui/Badges';
 import Modal from '@/components/ui/Modal';
 import BarChart, { DonutChart } from '@/components/ui/Charts';
 import ComplaintDetailModal from '@/components/ComplaintDetailModal';
+import ComplaintMap from '@/components/ComplaintMap';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import type { Complaint, Priority } from '@/lib/types';
 
 function useNavItems(): NavItem[] {
@@ -32,7 +34,38 @@ export default function AuthorityDashboard({ embedded = false }: { embedded?: bo
     dashboard: t('nav.dashboard'), complaints: t('auth_dash.complaintMgmt'), map: t('auth_dash.complaintMap'),
     departments: t('nav.departments'), workforce: t('nav.workforce'), analytics: t('nav.analytics'), notifications: t('nav.notifications'),
   };
-  const { complaints } = useStore();
+  const { complaints, fetchAllComplaints } = useStore();
+
+  useEffect(() => {
+    fetchAllComplaints();
+  }, [fetchAllComplaints]);
+
+  // Realtime: refetch complaints whenever a complaint row changes (new submission or status update),
+  // so the map and dashboards stay in sync across tabs without re-login.
+  const fetchRef = useRef(fetchAllComplaints);
+  fetchRef.current = fetchAllComplaints;
+  useEffect(() => {
+    let active = true;
+    const channel = supabase
+      .channel('authority-complaints-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'complaints' },
+        () => {
+          if (active) fetchRef.current();
+        }
+      )
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   const content = (
     <>
@@ -258,66 +291,38 @@ function MapView() {
   const { t } = useI18n();
   const { complaints } = useStore();
   const [selected, setSelected] = useState<Complaint | null>(null);
-
-  // Simulated map positions (percentages on a stylized map background)
-  const positions: Record<string, { x: number; y: number }> = {};
-  complaints.forEach((c, i) => {
-    // Distribute based on coordinates relative to Pune area
-    const x = ((c.coordinates.lng - 73.75) / 0.08) * 80 + 10;
-    const y = ((18.68 - c.coordinates.lat) / 0.08) * 80 + 10;
-    positions[c.id] = { x: Math.max(5, Math.min(90, x)), y: Math.max(5, Math.min(90, y)) };
-  });
+  const hasGeo = complaints.some((c) => c.coordinates && (c.coordinates.lat || c.coordinates.lng));
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4 text-sm">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-rose-500 rounded-full" /> {t('auth_dash.highP')}</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-amber-400 rounded-full" /> {t('auth_dash.medP')}</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-400 rounded-full" /> {t('auth_dash.lowP')}</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-500 rounded-full" /> {t('filter.submitted')}</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-cyan-500 rounded-full" /> {t('filter.verified')}</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-amber-500 rounded-full" /> {t('filter.assigned')}</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-violet-500 rounded-full" /> {t('filter.inProgress')}</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-full" /> {t('filter.resolved')}</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="relative w-full h-[500px] bg-gradient-to-br from-green-50 via-blue-50 to-gray-50 rounded-lg overflow-hidden border border-gray-200">
-          {/* Stylized map grid */}
-          <div className="absolute inset-0 opacity-20" style={{
-            backgroundImage: 'linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)',
-            backgroundSize: '40px 40px'
-          }} />
-          {/* Area labels */}
-          {['Akurdi', 'Nigdi', 'Pimpri', 'Wakad', 'Chinchwad'].map((area, i) => (
-            <span key={area} className="absolute text-xs font-medium text-gray-400"
-              style={{ left: `${15 + i * 18}%`, top: `${20 + (i % 3) * 25}%` }}>
-              {area}
-            </span>
-          ))}
-
-          {complaints.map((c) => {
-            const pos = positions[c.id];
-            const color = c.priority === 'High' ? 'bg-rose-500' : c.priority === 'Medium' ? 'bg-amber-400' : 'bg-emerald-400';
-            return (
-              <button key={c.id} onClick={() => setSelected(c)}
-                className="absolute -translate-x-1/2 -translate-y-1/2 group" style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
-                <span className={`block w-4 h-4 ${color} rounded-full border-2 border-white shadow-md hover:scale-125 transition-transform`} />
-                <span className="absolute left-1/2 -translate-x-1/2 -top-8 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  {c.id}
-                </span>
-              </button>
-            );
-          })}
+      {!hasGeo && complaints.length > 0 && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>None of the current complaints have coordinates. New complaints submitted with a map location will appear here.</span>
         </div>
-      </div>
+      )}
+
+      <ComplaintMap complaints={complaints} height="560px" showControls />
 
       {selected && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h3 className="font-bold text-gray-900">{selected.title}</h3>
-              <p className="text-xs text-gray-400">{selected.id} · {selected.citizenName}</p>
+              <p className="text-xs text-gray-400">{selected.id} · {selected.category}</p>
             </div>
             <div className="flex gap-2"><PriorityBadge priority={selected.priority} /><StatusBadge status={selected.status} /></div>
           </div>
           <p className="text-sm text-gray-600">{selected.description}</p>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mt-2"><MapPin className="w-4 h-4" /> {selected.location}</div>
+          <div className="flex items-center gap-2 text-sm text-gray-500 mt-2"><MapPin className="w-4 h-4" /> {selected.location || 'Location not specified'}</div>
         </div>
       )}
     </div>
