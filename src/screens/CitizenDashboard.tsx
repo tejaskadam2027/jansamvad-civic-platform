@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, FilePlus, ListChecks, Search, Trophy, Bell, User as UserIcon, MapPin, Upload, Image as ImageIcon, Video, Cpu, CircleCheck as CheckCircle2, Sparkles, TrendingUp, Award, Clock } from 'lucide-react';
+import { LayoutDashboard, FilePlus, ListChecks, Search, Trophy, Bell, User as UserIcon, MapPin, Image as ImageIcon, Video, Cpu, CircleCheck as CheckCircle2, Sparkles, TrendingUp, Award, Clock } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
 import { StatusBadge, PriorityBadge } from '@/components/ui/Badges';
 import Modal from '@/components/ui/Modal';
 import ComplaintDetailModal from '@/components/ComplaintDetailModal';
-import ComplaintMap from '@/components/ComplaintMap';
 import BarChart from '@/components/ui/Charts';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
@@ -201,7 +200,7 @@ function ReportComplaint({ onNavChange }: { onNavChange: (id: string) => void })
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
-      toast('Geolocation is not available on this device. Please pick a location on the map.', 'warning');
+      toast('Geolocation is not available on this device. You can still submit without GPS.', 'warning');
       return;
     }
     setLocating(true);
@@ -209,9 +208,10 @@ function ReportComplaint({ onNavChange }: { onNavChange: (id: string) => void })
       (pos) => {
         setCoordinates({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocating(false);
+        toast('GPS location captured. You can submit now.', 'success');
       },
       (err) => {
-        toast(err.message || 'Unable to retrieve your location. Pick a spot on the map instead.', 'warning');
+        toast(err.message || 'Unable to retrieve your location. You can still submit without GPS.', 'warning');
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 8000 }
@@ -234,10 +234,6 @@ function ReportComplaint({ onNavChange }: { onNavChange: (id: string) => void })
 
   const handleConfirm = async () => {
     if (!currentUser || !aiResult) return;
-    if (!coordinates) {
-      toast('Please select a location on the map or use your GPS before submitting.', 'warning');
-      return;
-    }
     try {
       const complaint = await addComplaint({
         title: title.trim(),
@@ -247,7 +243,7 @@ function ReportComplaint({ onNavChange }: { onNavChange: (id: string) => void })
         priority: aiResult.priority,
         confidence: aiResult.confidence,
         location: location || currentUser.area,
-        coordinates,
+        coordinates: coordinates || { lat: 0, lng: 0 },
         citizenId: currentUser.id,
         citizenName: currentUser.name,
         imageUrl: imageUrl || undefined,
@@ -357,30 +353,23 @@ function ReportComplaint({ onNavChange }: { onNavChange: (id: string) => void })
           </div>
         )}
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium text-gray-700">Complaint location</label>
-            <button
-              type="button"
-              onClick={handleUseMyLocation}
-              disabled={locating}
-              className="text-xs text-blue-600 hover:underline disabled:opacity-50 flex items-center gap-1"
-            >
-              <MapPin className="w-3 h-3" /> {locating ? 'Locating…' : 'Use my GPS'}
-            </button>
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <MapPin className="w-4 h-4 text-gray-400" />
+            <span>
+              {coordinates
+                ? `GPS captured: ${coordinates.lat.toFixed(5)}, ${coordinates.lng.toFixed(5)}`
+                : 'No GPS coordinates (optional)'}
+            </span>
           </div>
-          <p className="text-xs text-gray-400 mb-2">
-            {coordinates
-              ? `Selected: ${coordinates.lat.toFixed(5)}, ${coordinates.lng.toFixed(5)} — tap the map to adjust.`
-              : 'Tap the map to drop a pin at the exact spot of the issue.'}
-          </p>
-          <ComplaintMap
-            complaints={[]}
-            height="320px"
-            pickable
-            onSelect={(lat, lng) => setCoordinates({ lat, lng })}
-            selectedCoord={coordinates}
-          />
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={locating}
+            className="text-xs text-blue-600 hover:underline disabled:opacity-50 flex items-center gap-1"
+          >
+            <MapPin className="w-3 h-3" /> {locating ? 'Locating…' : 'Use my GPS'}
+          </button>
         </div>
 
         <button onClick={handleAnalyze} disabled={!title.trim() || !description.trim()}
