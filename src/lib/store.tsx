@@ -11,21 +11,19 @@ import type {
 } from './types';
 import { getInitialState } from './mockData';
 import { analyzeComplaint } from './ai';
-import { saveSession, loadSession, clearSession, savePendingUser, loadPendingUser, clearPendingUser, clearToken } from './auth';
-import { apiSignup, apiSignin, apiGetMe, getToken } from './api';
+import { apiSignup, apiSignin, apiGetMe } from './api';
 import { supabase } from './supabase';
 
 const STORAGE_KEY = 'jansamvad_state_v1';
 
+type AuthStatus = 'loading' | 'authenticated' | 'pending' | 'rejected' | 'unauthenticated';
+
 interface StoreContextValue extends AppState {
-  pendingUser: User | null;
-  isDemoMode: boolean;
+  authStatus: AuthStatus;
   login: (user: User) => void;
   logout: () => void;
-  selectRole: (role: Role) => void;
-  switchRole: () => void;
   signUp: (name: string, email: string, password: string, role: Role, phone: string) => Promise<{ ok: true; pending: boolean } | { ok: false; error: string }>;
-  signIn: (email: string, password: string) => Promise<{ ok: true; user: User } | { ok: false; error: string }>;
+  signIn: (email: string, password: string) => Promise<{ ok: true; pending: boolean } | { ok: false; error: string }>;
   addComplaint: (c: Omit<Complaint, 'id' | 'status' | 'timeline' | 'createdAt' | 'rewardPoints'>) => Promise<Complaint>;
   fetchUserComplaints: (userId: string) => Promise<void>;
   fetchAllComplaints: () => Promise<void>;
@@ -52,10 +50,6 @@ const StoreContext = createContext<StoreContextValue | null>(null);
 
 function loadState(): AppState {
   const base = getInitialState();
-  const session = loadSession();
-  if (session) {
-    return { ...base, currentUser: session };
-  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -66,10 +60,6 @@ function loadState(): AppState {
     // ignore
   }
   return base;
-}
-
-function loadInitialPending(): User | null {
-  return loadPendingUser();
 }
 
 function mapBackendStatus(status: string): Complaint['status'] {
@@ -148,7 +138,7 @@ function mapDbComplaint(row: DbComplaintRow): Complaint {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(loadState);
-  const [pendingUser, setPendingUser] = useState<User | null>(loadInitialPending);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
   const [toasts, setToasts] = useState<{ id: string; message: string; type: 'info' | 'success' | 'warning' }[]>([]);
 
   useEffect(() => {
@@ -160,18 +150,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state]);
 
+  // Restore session on mount and listen for auth changes.
+  // Wrap async work in IIFE to avoid onAuthStateChange deadlock.
   useEffect(() => {
-    const token = getToken();
-    if (token && !loadSession() && !loadPendingUser()) {
-      apiGetMe()
-        .then((user) => {
-          saveSession(user);
-          setState((s) => ({ ...s, currentUser: user }));
-        })
-        .catch(() => {
-          clearToken();
-        });
-    }
+    let mounted = true;
+
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (!session) {
+        setAuthStatus('unauthenticated');
+        return;
+      }
+      try {
+        const result = await apiGetMe();
+        if (!mounted) return;
+        if (result.accessStatus === 'PENDING') {
+          setAuthStatus('pending');
+          setState((s) => ({ ...s, currentUser: result.user }));
+        } else if (result.accessStatus === 'REJECTED') {
+          setAuthStatus('rejected');
+          setState((s) => ({ ...s, currentUser: result.user }));
+        } else {
+          setAuthStatus('authenticated');
+          setState((s) => ({ ...s, currentUser: result.user }));
+        }
+      } catch {
+        if (!mounted) return;
+        setAuthStatus('unauthenticated');
+      }
+    })();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      (async () => {
+        if (!session) {
+          setAuthStatus('unauthenticated');
+          setState((s) => ({ ...s, currentUser: null }));
+          return;
+        }
+        try {
+          const result = await apiGetMe();
+          if (result.accessStatus === 'PENDING') {
+            setAuthStatus('pending');
+            setState((s) => ({ ...s, currentUser: result.user }));
+          } else if (result.accessStatus === 'REJECTED') {
+            setAuthStatus('rejected');
+            setState((s) => ({ ...s, currentUser: result.user }));
+          } else {
+            setAuthStatus('authenticated');
+            setState((s) => ({ ...s, currentUser: result.user }));
+          }
+        } catch {
+          setAuthStatus('unauthenticated');
+          setState((s) => ({ ...s, currentUser: null }));
+        }
+      })();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const toast = useCallback((message: string, type: 'info' | 'success' | 'warning' = 'info') => {
@@ -187,39 +226,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback((user: User) => {
-    saveSession(user);
+    setAuthStatus('authenticated');
     setState((s) => ({ ...s, currentUser: user }));
   }, []);
 
   const logout = useCallback(() => {
     supabase.auth.signOut().catch(() => {});
-    clearSession();
-    clearPendingUser();
-    clearToken();
-    setPendingUser(null);
+    setAuthStatus('unauthenticated');
     setState((s) => ({ ...s, currentUser: null }));
-  }, []);
-
-  const selectRole = useCallback((role: Role) => {
-    setPendingUser((pending) => {
-      if (!pending) return pending;
-      const user: User = { ...pending, role };
-      saveSession(user);
-      clearPendingUser();
-      setState((s) => ({ ...s, currentUser: user }));
-      return null;
-    });
-  }, []);
-
-  const switchRole = useCallback(() => {
-    setState((s) => {
-      if (!s.currentUser) return s;
-      const pending: User = { ...s.currentUser };
-      savePendingUser(pending);
-      clearSession();
-      setPendingUser(pending);
-      return { ...s, currentUser: null };
-    });
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string, role: Role, phone: string) => {
@@ -240,11 +254,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
       const pending = result.accessStatus === 'PENDING';
       if (pending) {
-        clearToken();
+        setAuthStatus('pending');
+        setState((s) => ({ ...s, currentUser: result.user }));
       } else {
-        const user = result.user;
-        saveSession(user);
-        setState((s) => ({ ...s, currentUser: user }));
+        setAuthStatus('authenticated');
+        setState((s) => ({ ...s, currentUser: result.user }));
       }
       return { ok: true as const, pending };
     } catch (err) {
@@ -256,12 +270,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     try {
       const result = await apiSignin({ email, password });
-      const user = result.user;
-      saveSession(user);
-      clearPendingUser();
-      setPendingUser(null);
-      setState((s) => ({ ...s, currentUser: user }));
-      return { ok: true as const, user };
+      if (result.accessStatus === 'PENDING') {
+        setAuthStatus('pending');
+        setState((s) => ({ ...s, currentUser: result.user }));
+        return { ok: true as const, pending: true };
+      }
+      if (result.accessStatus === 'REJECTED') {
+        setAuthStatus('rejected');
+        setState((s) => ({ ...s, currentUser: result.user }));
+        return { ok: true as const, pending: false };
+      }
+      setAuthStatus('authenticated');
+      setState((s) => ({ ...s, currentUser: result.user }));
+      return { ok: true as const, pending: false };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid email or password';
       return { ok: false as const, error: message };
@@ -314,7 +335,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addComplaint = useCallback(
     async (c: Omit<Complaint, 'id' | 'status' | 'timeline' | 'createdAt' | 'rewardPoints'>) => {
-      // Persist to Supabase complaints table with a server-generated complaint number.
       const { data: number, error: numError } = await supabase.rpc('next_complaint_number');
       if (numError || !number) {
         throw new Error(numError?.message || 'Could not generate complaint number');
@@ -431,10 +451,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         complaints: s.complaints.map((c) =>
           c.id === id
             ? {
-                ...c,
-                status: 'Verified',
-                timeline: [...c.timeline, { status: 'Verified', timestamp: Date.now(), actor: 'Municipal Commissioner' }],
-              }
+              ...c,
+              status: 'Verified',
+              timeline: [...c.timeline, { status: 'Verified', timestamp: Date.now(), actor: 'Municipal Commissioner' }],
+            }
             : c
         ),
         rewards: [
@@ -461,10 +481,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         complaints: s.complaints.map((c) =>
           c.id === id
             ? {
-                ...c,
-                status: 'Rejected',
-                timeline: [...c.timeline, { status: 'Rejected', timestamp: Date.now(), actor: 'Municipal Commissioner' }],
-              }
+              ...c,
+              status: 'Rejected',
+              timeline: [...c.timeline, { status: 'Rejected', timestamp: Date.now(), actor: 'Municipal Commissioner' }],
+            }
             : c
         ),
         notifications: [
@@ -486,13 +506,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         complaints: s.complaints.map((c) =>
           c.id === complaintId
             ? {
-                ...c,
-                status: 'Assigned',
-                taskStatus: 'Assigned',
-                assignedWorkforceId: workforceId,
-                assignedWorkforceName: wf.name,
-                timeline: [...c.timeline, { status: 'Assigned', timestamp: Date.now(), actor: 'Municipal Commissioner', note: `Assigned to ${wf.name}` }],
-              }
+              ...c,
+              status: 'Assigned',
+              taskStatus: 'Assigned',
+              assignedWorkforceId: workforceId,
+              assignedWorkforceName: wf.name,
+              timeline: [...c.timeline, { status: 'Assigned', timestamp: Date.now(), actor: 'Municipal Commissioner', note: `Assigned to ${wf.name}` }],
+            }
             : c
         ),
         workforce: s.workforce.map((w) =>
@@ -537,11 +557,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         complaints: s.complaints.map((c) =>
           c.id === id
             ? {
-                ...c,
-                taskStatus: taskStatus || c.taskStatus,
-                status: newStatus,
-                timeline: [...c.timeline, { status: taskStatus || 'Updated', timestamp: Date.now(), actor: complaint.assignedWorkforceName || 'Workforce' }],
-              }
+              ...c,
+              taskStatus: taskStatus || c.taskStatus,
+              status: newStatus,
+              timeline: [...c.timeline, { status: taskStatus || 'Updated', timestamp: Date.now(), actor: complaint.assignedWorkforceName || 'Workforce' }],
+            }
             : c
         ),
       };
@@ -558,15 +578,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         complaints: s.complaints.map((c) =>
           c.id === id
             ? {
-                ...c,
-                status: 'Resolved',
-                taskStatus: 'Resolved',
-                beforePhotoUrl,
-                afterPhotoUrl,
-                resolutionNote: note,
-                rewardPoints: c.rewardPoints + 30,
-                timeline: [...c.timeline, { status: 'Resolved', timestamp: Date.now(), actor: c.assignedWorkforceName || 'Workforce', note }],
-              }
+              ...c,
+              status: 'Resolved',
+              taskStatus: 'Resolved',
+              beforePhotoUrl,
+              afterPhotoUrl,
+              resolutionNote: note,
+              rewardPoints: c.rewardPoints + 30,
+              timeline: [...c.timeline, { status: 'Resolved', timestamp: Date.now(), actor: c.assignedWorkforceName || 'Workforce', note }],
+            }
             : c
         ),
         workforce: s.workforce.map((w) =>
@@ -607,15 +627,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value: StoreContextValue = {
     ...state,
-    pendingUser,
-    isDemoMode: !getToken(),
+    authStatus,
     toasts,
     toast,
     dismissToast,
     login,
     logout,
-    selectRole,
-    switchRole,
     signUp,
     signIn,
     addComplaint,

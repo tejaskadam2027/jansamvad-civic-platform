@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, User, Shield, HardHat, Megaphone, ArrowRight, Mail, Lock, UserPlus, LogIn, CircleAlert as AlertCircle, CircleCheck as CheckCircle2, Phone } from 'lucide-react';
+import { Building2, User, Shield, HardHat, Megaphone, ArrowRight, Mail, Lock, UserPlus, LogIn, CircleAlert as AlertCircle, CircleCheck as CheckCircle2, Phone, Clock } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { validateEmail, validateMobile } from '@/lib/auth';
@@ -17,7 +17,7 @@ interface FieldErrors {
 }
 
 export default function LoginScreen() {
-  const { signIn, signUp, toast } = useStore();
+  const { signIn, signUp, authStatus, logout, currentUser, toast } = useStore();
   const { t } = useI18n();
   const [mode, setMode] = useState<Mode>('signin');
 
@@ -42,6 +42,68 @@ export default function LoginScreen() {
     setFieldErrors({});
   };
 
+  if (authStatus === 'pending' && currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-teal-50/30 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-center">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-br from-blue-600 to-teal-600 rounded-2xl shadow-lg">
+                <Building2 className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+              <Clock className="w-10 h-10 text-amber-600 mx-auto mb-3" />
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Awaiting Approval</h2>
+              <p className="text-sm text-gray-600">
+                Hi {currentUser.name}, your account is pending administrator approval.
+                You will be able to access your dashboard once an administrator approves your request.
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-xl font-medium text-sm hover:opacity-90"
+            >
+              Sign Out
+            </button>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-5">{t('app.prototype')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authStatus === 'rejected' && currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-teal-50/30 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7 text-center">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-br from-blue-600 to-teal-600 rounded-2xl shadow-lg">
+                <Building2 className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl mb-4">
+              <AlertCircle className="w-10 h-10 text-rose-600 mx-auto mb-3" />
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Access Rejected</h2>
+              <p className="text-sm text-gray-600">
+                Hi {currentUser.name}, your access request has been rejected by an administrator.
+                Please contact the municipal corporation for further assistance.
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-xl font-medium text-sm hover:opacity-90"
+            >
+              Sign Out
+            </button>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-5">{t('app.prototype')}</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -54,7 +116,11 @@ export default function LoginScreen() {
       setError(result.error);
       return;
     }
-    toast(t('auth.signedInAs', { name: result.user.name }), 'success');
+    if (result.pending) {
+      toast(t('auth.requestSubmitted'), 'success');
+    } else {
+      toast(t('auth.signedInAs', { name: 'user' }), 'success');
+    }
   };
 
   const validateSignUp = (): boolean => {
@@ -76,8 +142,6 @@ export default function LoginScreen() {
     }
     if (!suPassword) {
       errs.password = t('auth.errPassReq');
-    } else if (suPassword.length < 8) {
-      errs.password = t('auth.errPassMin');
     }
     if (!suConfirm) {
       errs.confirm = t('auth.errConfirmReq');
@@ -119,7 +183,6 @@ export default function LoginScreen() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-teal-50/30 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-3 mb-3">
             <div className="p-3 bg-gradient-to-br from-blue-600 to-teal-600 rounded-2xl shadow-lg">
@@ -130,14 +193,10 @@ export default function LoginScreen() {
               <p className="text-sm text-gray-500">{t('app.tagline')}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-500 max-w-sm mx-auto">
-            {t('app.desc')}
-          </p>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto">{t('app.desc')}</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7">
-          {/* Tabs */}
           <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6">
             <button
               onClick={() => switchMode('signin')}
@@ -157,7 +216,6 @@ export default function LoginScreen() {
             </button>
           </div>
 
-          {/* Error / Success banners */}
           {error && (
             <div className="mb-4 flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-lg">
               <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
@@ -171,7 +229,6 @@ export default function LoginScreen() {
             </div>
           )}
 
-          {/* Sign In Form */}
           {mode === 'signin' && (
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
@@ -224,7 +281,6 @@ export default function LoginScreen() {
             </form>
           )}
 
-          {/* Sign Up Form */}
           {mode === 'signup' && (
             <form onSubmit={handleSignUp} className="space-y-4">
               <div>
@@ -287,7 +343,7 @@ export default function LoginScreen() {
                     type="password"
                     value={suPassword}
                     onChange={(e) => setSuPassword(e.target.value)}
-                    placeholder={t('auth.passwordMin')}
+                    placeholder={t('auth.passwordPlaceholder')}
                     className={`w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none ${
                       fieldErrors.password ? 'border-rose-400' : 'border-gray-300'
                     }`}
@@ -349,9 +405,7 @@ export default function LoginScreen() {
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-5">
-          {t('app.prototype')}
-        </p>
+        <p className="text-center text-xs text-gray-400 mt-5">{t('app.prototype')}</p>
       </div>
     </div>
   );

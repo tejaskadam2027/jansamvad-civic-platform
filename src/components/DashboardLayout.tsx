@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { Bell, LogOut, Menu, X, Building2, Globe, Repeat } from 'lucide-react';
+import { Bell, LogOut, Menu, X, Building2, Globe } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useI18n, type Lang } from '@/lib/i18n';
 import { timeAgo } from '@/lib/utils';
@@ -40,7 +40,7 @@ export default function DashboardLayout({
   children,
   role,
 }: DashboardLayoutProps) {
-  const { currentUser, logout, switchRole, notifications, markNotificationRead, markAllNotificationsRead } = useStore();
+  const { currentUser, logout, notifications, markNotificationRead, markAllNotificationsRead } = useStore();
   const { t, lang, setLang } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -113,12 +113,6 @@ export default function DashboardLayout({
               <p className="text-xs text-gray-400 truncate">{currentUser?.area}</p>
             </div>
           </div>
-          <button
-            onClick={switchRole}
-            className="w-full flex items-center gap-2 px-3 py-2 mb-1 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          >
-            <Repeat className="w-4 h-4" /> {t('layout.switchRole')}
-          </button>
           <button
             onClick={logout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700"
