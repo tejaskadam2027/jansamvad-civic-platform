@@ -356,7 +356,9 @@ export async function apiUpdateComplaintStatus(id: string, status: string, taskS
   return handleResponse<ComplaintResponseDto>(res);
 }
 
-// ---- Chat API (uses Spring Boot backend if VITE_API_URL is set) ----
+// ---- Chat API (Supabase Edge Function "chat-assistant") ----
+// The assistant runs as a Supabase Edge Function so the AI provider key stays server-side.
+// The user's access token is attached automatically by the supabase client.
 
 export interface ChatMessageDto {
   message: string;
@@ -370,7 +372,6 @@ export interface ChatReplyDto {
 
 export interface ChatConversationDto {
   id: number;
-  userId: number;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -379,59 +380,92 @@ export interface ChatConversationDto {
 
 export interface ChatMessageItemDto {
   id: number;
-  conversationId: number;
   sender: string;
   message: string;
   createdAt: string;
 }
 
-export async function apiSendMessage(message: string, conversationId?: number): Promise<ChatReplyDto> {
-  if (!import.meta.env.VITE_API_URL) {
-    return localChatReply(message);
+async function chatFunction(path: string, init?: { method?: string; body?: unknown }): Promise<Response> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) {
+    throw new Error('Please sign in to use the assistant.');
   }
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}/api/chat/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ message, conversationId }),
-    });
-  } catch {
-    return localChatReply(message);
-  }
-  return handleResponse<ChatReplyDto>(res);
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-assistant${path}`;
+  return fetch(url, {
+    method: init?.method || 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    },
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+  });
 }
 
-function localChatReply(message: string): ChatReplyDto {
-  const text = message.replace(/^\[(marathi|hindi)\]\s*/i, '');
-  const analysis = analyzeComplaintEnhanced(text);
-  const reply = `I've analyzed your query. Based on the description, this appears to be a "${analysis.category}" issue under the ${analysis.department}.\n\nPriority: ${analysis.priority} (confidence: ${analysis.confidence}%)\n\nRecommended action: ${analysis.suggestedAction}\n\nYou can file a complaint through the Citizen Dashboard, and it will be automatically routed to the correct department.`;
-  return { conversationId: Date.now(), reply };
+export async function apiSendMessage(message: string, conversationId?: number): Promise<ChatReplyDto> {
+  let res: Response;
+  try {
+    res = await chatFunction('/message', { method: 'POST', body: { message, conversationId } });
+  } catch {
+    throw new Error('I could not reach the assistant service. Please check your connection and try again.');
+  }
+  if (!res.ok) {
+    let detail = '';
+    try { const b = await res.json(); detail = b?.error || ''; } catch { /* ignore */ }
+    throw new Error(detail || `The assistant service returned an error (${res.status}).`);
+  }
+  const data = await res.json() as ChatReplyDto;
+  if (typeof data?.reply !== 'string' || !data.reply) {
+    throw new Error('The assistant returned an empty response. Please try again.');
+  }
+  return data;
 }
 
 export async function apiGetConversations(): Promise<ChatConversationDto[]> {
-  if (!import.meta.env.VITE_API_URL) return [];
-  const res = await fetch(`${API_BASE}/api/chat/conversations`, {
-    headers: { ...authHeaders() },
-  });
-  return handleResponse<ChatConversationDto[]>(res);
+  try {
+    const res = await chatFunction('/conversations', { method: 'GET' });
+    if (!res.ok) return [];
+    const data = await res.json() as Omit<ChatConversationDto, 'messages'>[];
+    return data.map((c) => ({
+      id: c.id,
+      title: c.title,
+      createdAt: c.createdAt || (c as { created_at?: string }).created_at || '',
+      updatedAt: c.updatedAt || (c as { updated_at?: string }).updated_at || '',
+      messages: [],
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function apiGetConversationMessages(id: number): Promise<ChatConversationDto> {
-  const res = await fetch(`${API_BASE}/api/chat/conversations/${id}/messages`, {
-    headers: { ...authHeaders() },
-  });
-  return handleResponse<ChatConversationDto>(res);
+  const res = await chatFunction(`/conversations/${id}/messages`, { method: 'GET' });
+  if (!res.ok) {
+    throw new Error('Could not load this conversation.');
+  }
+  const raw = await res.json() as {
+    id: number; title: string; created_at?: string; updated_at?: string; createdAt?: string; updatedAt?: string;
+    messages?: { id: number; sender: string; message: string; created_at?: string; createdAt?: string }[];
+  };
+  return {
+    id: raw.id,
+    title: raw.title,
+    createdAt: raw.createdAt || raw.created_at || '',
+    updatedAt: raw.updatedAt || raw.updated_at || '',
+    messages: (raw.messages || []).map((m) => ({
+      id: m.id,
+      sender: m.sender,
+      message: m.message,
+      createdAt: m.createdAt || m.created_at || '',
+    })),
+  };
 }
 
 export async function apiDeleteConversation(id: number): Promise<void> {
-  if (!import.meta.env.VITE_API_URL) return;
-  const res = await fetch(`${API_BASE}/api/chat/conversations/${id}`, {
-    method: 'DELETE',
-    headers: { ...authHeaders() },
-  });
+  const res = await chatFunction(`/conversations/${id}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 204) {
-    throw new Error(`Failed to delete conversation (${res.status})`);
+    throw new Error('Could not delete this conversation.');
   }
 }
 
