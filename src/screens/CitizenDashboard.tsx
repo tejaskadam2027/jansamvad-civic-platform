@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LayoutDashboard, FilePlus, ListChecks, Search, Trophy, Bell, User as UserIcon, MapPin, Upload, Image as ImageIcon, Video, Cpu, CircleCheck as CheckCircle2, Sparkles, TrendingUp, Award, Clock } from 'lucide-react';
 import DashboardLayout, { type NavItem } from '@/components/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
@@ -12,6 +12,7 @@ import { useI18n } from '@/lib/i18n';
 import { analyzeComplaintEnhanced, CATEGORY_LIST } from '@/lib/ai';
 import type { EnhancedAIAnalysis } from '@/lib/ai';
 import { formatDate, timeAgo, getLevel } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import type { Complaint } from '@/lib/types';
 
 const AREAS = ['Akurdi', 'Nigdi', 'Pimpri', 'Wakad', 'Chinchwad', 'Bhosari', 'Hinjewadi'];
@@ -26,6 +27,38 @@ export default function CitizenDashboard({ embedded = false }: { embedded?: bool
       fetchUserComplaints(currentUser.id);
     }
   }, [currentUser?.id, fetchUserComplaints]);
+
+  // Realtime: refetch this citizen's complaints whenever any complaint row changes
+  // (e.g. authority verifies/rejects/assigns/resolves), so the dashboard stays in sync
+  // without requiring a page refresh or re-login.
+  const fetchRef = useRef(fetchUserComplaints);
+  fetchRef.current = fetchUserComplaints;
+  const userIdRef = useRef(currentUser?.id);
+  userIdRef.current = currentUser?.id;
+  useEffect(() => {
+    let active = true;
+    const channel = supabase
+      .channel('citizen-complaints-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'complaints' },
+        () => {
+          if (active && userIdRef.current) fetchRef.current(userIdRef.current);
+        }
+      )
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && userIdRef.current) {
+        fetchRef.current(userIdRef.current);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   const myComplaints = complaints.filter((c) => c.citizenId === currentUser?.id);
   const myRewards = rewards.filter((r) => r.citizenId === currentUser?.id);

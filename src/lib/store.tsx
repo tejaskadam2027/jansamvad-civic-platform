@@ -378,7 +378,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .select('id, complaint_number, citizen_id, citizen_name, title, description, category, department, priority, location, latitude, longitude, image_url, video_name, status, task_status, assigned_worker_id, assigned_worker_name, before_photo_url, after_photo_url, resolution_note, reward_points, created_at')
       .eq('citizen_id', userId)
       .order('created_at', { ascending: false });
-    if (error) return;
+    if (error) {
+      console.error('[fetchUserComplaints] Supabase query failed:', error.message);
+      return;
+    }
     const complaints = (data || []).map(mapDbComplaint);
     setState((s) => {
       const otherComplaints = s.complaints.filter((c) => c.citizenId !== userId);
@@ -391,7 +394,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from('complaints')
       .select('id, complaint_number, citizen_id, citizen_name, title, description, category, department, priority, location, latitude, longitude, image_url, video_name, status, task_status, assigned_worker_id, assigned_worker_name, before_photo_url, after_photo_url, resolution_note, reward_points, created_at')
       .order('created_at', { ascending: false });
-    if (error) return;
+    if (error) {
+      console.error('[fetchAllComplaints] Supabase query failed:', error.message);
+      return;
+    }
     const complaints = (data || []).map(mapDbComplaint);
     setState((s) => ({ ...s, complaints }));
   }, []);
@@ -414,6 +420,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const verifyComplaint = useCallback((id: string) => {
+    void supabase.from('complaints').update({ status: 'VERIFIED', updated_at: new Date().toISOString() }).eq('complaint_number', id).then(({ error }) => {
+      if (error) console.error('[verifyComplaint] DB update failed:', error.message);
+    });
     setState((s) => {
       const complaint = s.complaints.find((c) => c.id === id);
       if (!complaint) return s;
@@ -441,6 +450,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const rejectComplaint = useCallback((id: string) => {
+    void supabase.from('complaints').update({ status: 'REJECTED', updated_at: new Date().toISOString() }).eq('complaint_number', id).then(({ error }) => {
+      if (error) console.error('[rejectComplaint] DB update failed:', error.message);
+    });
     setState((s) => {
       const complaint = s.complaints.find((c) => c.id === id);
       if (!complaint) return s;
